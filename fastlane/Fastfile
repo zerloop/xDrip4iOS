@@ -39,10 +39,15 @@ platform :ios do
       key_content: "#{FASTLANE_KEY}"
     )
 
-    previous_build_number = latest_testflight_build_number(
-      app_identifier: "com.#{TEAMID}.xdripswift",
-      api_key: api_key,
-    )
+    begin
+      previous_build_number = latest_testflight_build_number(
+        app_identifier: "com.#{TEAMID}.xdripswift",
+        api_key: api_key,
+      )
+    rescue => ex
+      UI.important("No previous TestFlight build found or app pending: #{ex.message}. Starting at build 1.")
+      previous_build_number = 0
+    end
 
     current_build_number = previous_build_number + 1
 
