@@ -207,6 +207,6 @@
 "sibionicsGS1FirmwareLegacy" = "Eski";
 "sibionicsGS1Battery" = "Batarya";
 "sibionicsGS1LastIndex" = "Son indeks";
-"sibionicsGS1LastRawValue" = "Son ham değer";
+"sibionicsGS1LastRawValue" = "Son ham değer (kalibre edilmemiş)";
 "sibionicsGS1LastPacketTime" = "Son paket zamanı";
 "sibionicsGS1UnknownPacketCount" = "Bilinmeyen paket sayısı";

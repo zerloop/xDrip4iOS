@@ -544,7 +544,7 @@ class Texts_BluetoothPeripheralView {
     }()
 
     static let sibionicsGS1LastRawValue: String = {
-        return NSLocalizedString("sibionicsGS1LastRawValue", tableName: filename, bundle: Bundle.main, value: "Son ham değer", comment: "Sibionics GS1 diagnostics row title, last raw value")
+        return NSLocalizedString("sibionicsGS1LastRawValue", tableName: filename, bundle: Bundle.main, value: "Son ham değer (kalibre edilmemiş)", comment: "Sibionics GS1 diagnostics row title, last raw (uncalibrated) value")
     }()
 
     static let sibionicsGS1LastPacketTime: String = {

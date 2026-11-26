@@ -417,7 +417,7 @@ final class SibionicsGS1WiringTests: XCTestCase {
         let rows = SibionicsGS1DiagnosticsRows.make(diagnostics: diagnostics)
 
         XCTAssertEqual(rows.map(\.title), [
-            "Bağlantı durumu", "Firmware", "Batarya", "Son indeks", "Son ham değer", "Son paket zamanı", "Bilinmeyen paket sayısı"
+            "Bağlantı durumu", "Firmware", "Batarya", "Son indeks", "Son ham değer (kalibre edilmemiş)", "Son paket zamanı", "Bilinmeyen paket sayısı"
         ])
         XCTAssertEqual(rows[0].detail, "Glikoz verisi alınıyor.")
         XCTAssertEqual(rows[1].detail, "V120")
