@@ -116,6 +116,41 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
         XCTAssertEqual(policy.requestAttempt(now: t0.addingTimeInterval(31)), 5)
     }
 
+    func testFailedAttemptWithKnownPeripheralLeavesOnePendingConnect() {
+        var policy = SibionicsGS1ReconnectPolicy(delays: [5, 10, 15])
+        let t0 = Date(timeIntervalSince1970: 1_795_000_000)
+
+        XCTAssertEqual(policy.requestAttempt(now: t0), 5)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true), .pendingConnect)
+        XCTAssertTrue(policy.pendingConnectOutstanding)
+
+        // not repeated while pending
+        XCTAssertEqual(policy.requestAttempt(now: t0.addingTimeInterval(5)), 10)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true), .waitForPendingConnect)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true), .waitForPendingConnect)
+
+        // once the pending connect ended (didConnect / didFail / didDisconnect / Bluetooth off), a new one may be issued
+        policy.pendingConnectEnded()
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true), .pendingConnect)
+    }
+
+    func testFailedAttemptWithoutKnownPeripheralRetriesWithBackoff() {
+        var policy = SibionicsGS1ReconnectPolicy(delays: [5, 10, 15])
+        let t0 = Date(timeIntervalSince1970: 1_795_000_000)
+
+        XCTAssertEqual(policy.requestAttempt(now: t0), 5)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: false), .retryWithBackoff)
+        XCTAssertFalse(policy.pendingConnectOutstanding)
+        XCTAssertNil(policy.requestAttempt(now: t0.addingTimeInterval(1)), "back-off still applies")
+        XCTAssertEqual(policy.requestAttempt(now: t0.addingTimeInterval(5)), 10)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: false), .retryWithBackoff)
+    }
+
+    func testStallTimeoutIsDisabledOnlyWhilePendingConnectIsOutstanding() {
+        // no pending connect in the simulator: connection setup after didConnect keeps its stall timeout
+        XCTAssertTrue(transmitter.shouldTimeoutStalledConnectionSetup())
+    }
+
     func testWatchdogResubscribesAt5MinutesAndReleasesAt15() {
         XCTAssertEqual(SibionicsGS1Watchdog.action(secondsWithoutGlucose: 299, alreadyResubscribed: false), .none)
         XCTAssertEqual(SibionicsGS1Watchdog.action(secondsWithoutGlucose: 300, alreadyResubscribed: false), .resubscribe)

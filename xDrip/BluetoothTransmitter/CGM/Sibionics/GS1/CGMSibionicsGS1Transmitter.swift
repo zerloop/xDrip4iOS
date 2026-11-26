@@ -45,6 +45,32 @@ struct SibionicsGS1ReconnectPolicy {
     mutating func reset() {
         attempt = 0
         nextAllowedAttempt = .distantPast
+        pendingConnectOutstanding = false
+    }
+
+    /// what to do after a retrieveConnected attempt found nothing
+    enum Recovery: Equatable {
+        /// leave exactly one OS-level pending connect for the known peripheral, without stall timeout.
+        /// iOS completes it when the official app re-establishes the shared link and wakes xDrip
+        case pendingConnect
+        /// a pending connect is already outstanding, do nothing
+        case waitForPendingConnect
+        /// no known peripheral: retry retrieveConnected after the back-off delay
+        case retryWithBackoff
+    }
+
+    private(set) var pendingConnectOutstanding = false
+
+    mutating func afterFailedAttempt(hasKnownPeripheral: Bool) -> Recovery {
+        guard hasKnownPeripheral else { return .retryWithBackoff }
+        if pendingConnectOutstanding { return .waitForPendingConnect }
+        pendingConnectOutstanding = true
+        return .pendingConnect
+    }
+
+    /// to be called when the pending connect completes, fails, or could not be issued
+    mutating func pendingConnectEnded() {
+        pendingConnectOutstanding = false
     }
 
 }
@@ -167,6 +193,9 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     private var lastCentralState: CBManagerState?
 
+    /// central from the latest Core Bluetooth callback, used to check that the system still knows the stored peripheral
+    private weak var lastCentral: CBCentralManager?
+
     private weak var restoredPeripheral: CBPeripheral?
 
     private var notifyCharacteristic: CBCharacteristic?
@@ -261,15 +290,37 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     /// base reconnects immediately with central.connect, here it goes through the back-off
     override func reconnectAfterDisconnect(_ central: CBCentralManager) {
+        withStateLock { lastCentral = central }
         _ = attemptRetrieveConnected(trigger: "didDisconnect")
     }
 
+    /// external connect requests (manager at launch, detail screen) go through the same path:
+    /// retrieveConnected with back-off, then one pending connect for the known peripheral
+    override func connect() {
+        runOnCentralQueue { [weak self] in
+            guard let self else { return }
+            switch self.getConnectionStatus() {
+            case .connected, .connecting:
+                return
+            default:
+                _ = self.attemptRetrieveConnected(trigger: "connect")
+            }
+        }
+    }
+
+    /// the stall timeout applies to connection setup after didConnect, never to the outstanding
+    /// pending connect: that one must stay with iOS until the official app's link comes back
     override func shouldTimeoutStalledConnectionSetup() -> Bool {
-        true
+        !withStateLock { reconnectPolicy.pendingConnectOutstanding }
     }
 
     override func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        withStateLock { lastCentralState = central.state }
+        withStateLock {
+            lastCentralState = central.state
+            lastCentral = central
+            // iOS drops pending connects when Bluetooth is not powered on
+            if central.state != .poweredOn { reconnectPolicy.pendingConnectEnded() }
+        }
 
         trace("in centralManagerDidUpdateState, new state is %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, central.state.toString())
 
@@ -301,18 +352,28 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
         guard let restored = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral])?.first,
               deviceAddress == nil || restored.identifier.uuidString == deviceAddress else { return }
-        withStateLock { restoredPeripheral = restored }
+        withStateLock {
+            restoredPeripheral = restored
+            lastCentral = central
+        }
     }
 
     /// base retries central.connect immediately, which could loop. Use the back-off instead
     override func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         cancelConnectionTimer()
+        withStateLock {
+            lastCentral = central
+            reconnectPolicy.pendingConnectEnded()
+        }
         trace("in didFailToConnect, error = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .error, error?.localizedDescription ?? "none")
         _ = attemptRetrieveConnected(trigger: "didFailToConnect")
     }
 
     override func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         withStateLock {
+            lastCentral = central
+            // clear before super, so the base arms the setup timeout for this connection
+            reconnectPolicy.pendingConnectEnded()
             restoredPeripheral = peripheral
             readCharacteristicUUIDs.removeAll()
             notifyCharacteristic = nil
@@ -330,6 +391,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             watchdogGeneration += 1
             notifyCharacteristic = nil
             restoredPeripheral = peripheral
+            lastCentral = central
+            reconnectPolicy.pendingConnectEnded()
         }
         trace("disconnected, error = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, error?.localizedDescription ?? "none")
 
@@ -373,8 +436,56 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         }
 
         updateDiagnostics { $0.statusMessage = Self.officialAppNotConnectedMessage }
-        scheduleRetryIfNeeded()
+
+        let hasKnownPeripheral = centralState == .poweredOn && systemKnowsStoredPeripheral()
+        let connectionStatus = getConnectionStatus()
+        let recovery: SibionicsGS1ReconnectPolicy.Recovery = withStateLock {
+            // self-healing: a pending connect that iOS no longer holds does not block a new one
+            if reconnectPolicy.pendingConnectOutstanding && connectionStatus != .connecting {
+                reconnectPolicy.pendingConnectEnded()
+            }
+            return reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: hasKnownPeripheral)
+        }
+
+        switch recovery {
+        case .pendingConnect:
+            if issuePendingConnect() {
+                return .connecting
+            }
+            withStateLock { reconnectPolicy.pendingConnectEnded() }
+            scheduleRetryIfNeeded()
+        case .waitForPendingConnect:
+            trace("pending connect already outstanding, trigger = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .debug, trigger)
+            return .connecting
+        case .retryWithBackoff:
+            scheduleRetryIfNeeded()
+        }
         return result(for: centralState)
+    }
+
+    /// true if a peripheral was stored and the system still knows its identifier
+    private func systemKnowsStoredPeripheral() -> Bool {
+        guard let deviceAddress, let identifier = UUID(uuidString: deviceAddress),
+              let central = withStateLock({ lastCentral }), central.state == .poweredOn else { return false }
+        return !central.retrievePeripherals(withIdentifiers: [identifier]).isEmpty
+    }
+
+    /// leaves exactly one OS-level connect request for the stored peripheral, without stall timeout
+    /// (shouldTimeoutStalledConnectionSetup is false while it is outstanding). No write and no scan:
+    /// iOS completes it when the official app re-establishes the shared link and then wakes xDrip
+    private func issuePendingConnect() -> Bool {
+        switch getConnectionStatus() {
+        case .connecting, .connected:
+            // already pending or connected: never issue a duplicate connect
+            return true
+        case .disconnecting:
+            return false
+        default:
+            trace("PENDING CONNECT for stored peripheral %{public}@, no timeout", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, deviceAddress ?? "-")
+            // base connect: retrievePeripherals(withIdentifiers:) then central.connect, keeps the base peripheral reference
+            super.connect()
+            return true
+        }
     }
 
     private func result(for centralState: CBManagerState?) -> BluetoothTransmitter.startScanningResult {
@@ -392,7 +503,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     private func scheduleRetryIfNeeded() {
 
         let delay: TimeInterval? = withStateLock {
-            guard !retryPending, !isReleased else { return nil }
+            guard !retryPending, !isReleased, !reconnectPolicy.pendingConnectOutstanding else { return nil }
             retryPending = true
             return max(0.5, reconnectPolicy.nextAllowedAttempt.timeIntervalSinceNow)
         }
