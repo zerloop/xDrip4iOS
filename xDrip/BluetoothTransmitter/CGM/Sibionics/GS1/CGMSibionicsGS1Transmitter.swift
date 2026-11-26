@@ -68,6 +68,13 @@ struct SibionicsGS1ReconnectPolicy {
         return .pendingConnect
     }
 
+    /// clears a stale pending-connect flag (flag true but the peripheral is not connecting). Returns true if cleared
+    mutating func reconcilePendingConnect(peripheralIsConnecting: Bool) -> Bool {
+        guard pendingConnectOutstanding, !peripheralIsConnecting else { return false }
+        pendingConnectOutstanding = false
+        return true
+    }
+
     /// to be called when the pending connect completes, fails, or could not be issued
     mutating func pendingConnectEnded() {
         pendingConnectOutstanding = false
@@ -166,6 +173,9 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     /// tolerance used to decide if the session start equals the active xDrip sensor start
     private let sensorSessionTolerance: TimeInterval = 10 * 60
 
+    /// delay after which an issued pending connect is verified (the base issues it asynchronously)
+    private let pendingConnectVerificationDelay: TimeInterval = 1
+
     /// interval of the watchdog tick while connected
     private let watchdogTickInterval: TimeInterval = 60
 
@@ -182,6 +192,9 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     private var reconnectPolicy = SibionicsGS1ReconnectPolicy()
 
     private var retryPending = false
+
+    /// invalidates a scheduled retry
+    private var retryGeneration = 0
 
     private var retryBackgroundTask: SibionicsGS1BackgroundTask?
 
@@ -224,6 +237,27 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     /// number of write attempts that were blocked
     var blockedWriteCount: Int {
         withStateLock { blockedWrites }
+    }
+
+    var isPendingConnectOutstanding: Bool {
+        withStateLock { reconnectPolicy.pendingConnectOutstanding }
+    }
+
+    var isRetryScheduled: Bool {
+        withStateLock { retryPending }
+    }
+
+    /// test seam: puts the policy in the pending-connect state without a real connect (= a stale flag)
+    func enterPendingConnectStateForTesting() {
+        withStateLock { _ = reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: true) }
+    }
+
+    /// test seam: drops a scheduled retry, as if none had been scheduled
+    func cancelScheduledRetryForTesting() {
+        withStateLock {
+            retryGeneration += 1
+            retryPending = false
+        }
     }
 
     // MARK: - Initialization
@@ -405,6 +439,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
         let now = Date()
 
+        reconcileStalePendingConnect()
+
         let (delay, centralState, released): (TimeInterval?, CBManagerState?, Bool) = withStateLock {
             guard !isReleased else { return (nil, lastCentralState, true) }
             let delay = reconnectPolicy.requestAttempt(now: now)
@@ -438,13 +474,9 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         updateDiagnostics { $0.statusMessage = Self.officialAppNotConnectedMessage }
 
         let hasKnownPeripheral = centralState == .poweredOn && systemKnowsStoredPeripheral()
-        let connectionStatus = getConnectionStatus()
+        reconcileStalePendingConnect()
         let recovery: SibionicsGS1ReconnectPolicy.Recovery = withStateLock {
-            // self-healing: a pending connect that iOS no longer holds does not block a new one
-            if reconnectPolicy.pendingConnectOutstanding && connectionStatus != .connecting {
-                reconnectPolicy.pendingConnectEnded()
-            }
-            return reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: hasKnownPeripheral)
+            reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: hasKnownPeripheral)
         }
 
         switch recovery {
@@ -482,10 +514,41 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             return false
         default:
             trace("PENDING CONNECT for stored peripheral %{public}@, no timeout", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, deviceAddress ?? "-")
-            // base connect: retrievePeripherals(withIdentifiers:) then central.connect, keeps the base peripheral reference
+            // base connect: retrievePeripherals(withIdentifiers:) then central.connect, keeps the base peripheral reference.
+            // It runs asynchronously on the Core Bluetooth queue, so verify afterwards that a connect was really issued
             super.connect()
+            runOnCentralQueue(after: pendingConnectVerificationDelay) { [weak self] in
+                self?.verifyPendingConnectIssued()
+            }
             return true
         }
+    }
+
+    /// if the base could not issue the connect (identifier unknown, no central), clear the flag and fall back to the back-off
+    private func verifyPendingConnectIssued() {
+        guard withStateLock({ !isReleased && reconnectPolicy.pendingConnectOutstanding }) else { return }
+        if reconcileStalePendingConnect() {
+            trace("PENDING CONNECT was not issued, falling back to back-off retrieveConnected", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .error)
+            scheduleRetryIfNeeded()
+        }
+    }
+
+    /// clears the pending-connect flag if the peripheral is not actually connecting. Returns true if cleared
+    @discardableResult
+    private func reconcileStalePendingConnect() -> Bool {
+        let status = getConnectionStatus()
+        let isConnecting = status == .connecting || status == .connected
+        let cleared: Bool = withStateLock { reconnectPolicy.reconcilePendingConnect(peripheralIsConnecting: isConnecting) }
+        if cleared {
+            trace("stale pending connect flag cleared, peripheral state = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, status.map { String(describing: $0.rawValue) } ?? "none")
+        }
+        return cleared
+    }
+
+    /// own disconnect: xDrip's connect request (pending or not) ends here, didDisconnect may not follow for a pending one
+    override func disconnect() {
+        withStateLock { reconnectPolicy.pendingConnectEnded() }
+        super.disconnect()
     }
 
     private func result(for centralState: CBManagerState?) -> BluetoothTransmitter.startScanningResult {
@@ -502,6 +565,9 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     private func scheduleRetryIfNeeded() {
 
+        // a stale pending-connect flag must never block the retry (also in the back-off suppressed path)
+        reconcileStalePendingConnect()
+
         let delay: TimeInterval? = withStateLock {
             guard !retryPending, !isReleased, !reconnectPolicy.pendingConnectOutstanding else { return nil }
             retryPending = true
@@ -509,6 +575,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         }
 
         guard let delay else { return }
+
+        let generation = withStateLock { retryGeneration }
 
         let backgroundTask: SibionicsGS1BackgroundTask? = UserDefaults.standard.appInForeGround ? nil : SibionicsGS1BackgroundTask()
         backgroundTask?.begin()
@@ -525,6 +593,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
                 return
             }
             let released: Bool = self.withStateLock {
+                guard self.retryGeneration == generation else { return true }
                 self.retryPending = false
                 if self.retryBackgroundTask === backgroundTask {
                     self.retryBackgroundTask = nil
@@ -803,6 +872,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         let characteristic: CBCharacteristic? = withStateLock {
             isReleased = true
             watchdogGeneration += 1
+            retryGeneration += 1
+            reconnectPolicy.pendingConnectEnded()
             retryBackgroundTask?.end()
             retryBackgroundTask = nil
             let characteristic = notifyCharacteristic

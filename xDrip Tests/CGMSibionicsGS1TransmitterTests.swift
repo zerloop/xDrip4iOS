@@ -147,8 +147,55 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
     }
 
     func testStallTimeoutIsDisabledOnlyWhilePendingConnectIsOutstanding() {
-        // no pending connect in the simulator: connection setup after didConnect keeps its stall timeout
         XCTAssertTrue(transmitter.shouldTimeoutStalledConnectionSetup())
+
+        transmitter.enterPendingConnectStateForTesting()
+        XCTAssertTrue(transmitter.isPendingConnectOutstanding)
+        XCTAssertFalse(transmitter.shouldTimeoutStalledConnectionSetup(), "the pending connect must not be cancelled by the stall timeout")
+
+        // disconnect() ends xDrip's own connect request, so the pending state must end too
+        transmitter.disconnect()
+        XCTAssertFalse(transmitter.isPendingConnectOutstanding)
+        XCTAssertTrue(transmitter.shouldTimeoutStalledConnectionSetup())
+    }
+
+    func testPolicyReconcileClearsStalePendingConnect() {
+        var policy = SibionicsGS1ReconnectPolicy(delays: [5, 10, 15])
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true), .pendingConnect)
+
+        XCTAssertFalse(policy.reconcilePendingConnect(peripheralIsConnecting: true), "a real pending connect is kept")
+        XCTAssertTrue(policy.pendingConnectOutstanding)
+
+        XCTAssertTrue(policy.reconcilePendingConnect(peripheralIsConnecting: false), "stale flag is cleared")
+        XCTAssertFalse(policy.pendingConnectOutstanding)
+        XCTAssertFalse(policy.reconcilePendingConnect(peripheralIsConnecting: false))
+    }
+
+    func testStalePendingConnectFlagIsClearedAndRetryScheduledInSuppressedPath() {
+        // consume the first back-off slot (no peripheral in the simulator)
+        _ = transmitter.startScanning()
+        XCTAssertEqual(transmitter.retrieveConnectedAttemptCount, 1)
+
+        // stale state: flag true, no real pending connect, no retry scheduled
+        transmitter.cancelScheduledRetryForTesting()
+        transmitter.enterPendingConnectStateForTesting()
+        XCTAssertFalse(transmitter.isRetryScheduled)
+
+        // back-off suppresses the attempt, but the stale flag must be cleared and a retry scheduled
+        _ = transmitter.startScanning()
+        XCTAssertEqual(transmitter.retrieveConnectedAttemptCount, 1, "still no immediate re-attempt")
+        XCTAssertFalse(transmitter.isPendingConnectOutstanding)
+        XCTAssertTrue(transmitter.isRetryScheduled)
+    }
+
+    func testStalePendingConnectFlagIsClearedInAllowedAttemptPath() {
+        transmitter.enterPendingConnectStateForTesting()
+        XCTAssertTrue(transmitter.isPendingConnectOutstanding)
+
+        _ = transmitter.startScanning()
+        XCTAssertEqual(transmitter.retrieveConnectedAttemptCount, 1)
+        XCTAssertFalse(transmitter.isPendingConnectOutstanding)
+        XCTAssertTrue(transmitter.isRetryScheduled)
     }
 
     func testWatchdogResubscribesAt5MinutesAndReleasesAt15() {
