@@ -567,7 +567,7 @@ class BgPostProcessingManager {
         switch adjustmentDisabledReason {
         case .masterLibreUsesCalibration:
             return Texts_HomeView.postProcessingAdjustmentDisabledUseNativeAlgorithm
-        case .masterDexcomG6UsesCalibration:
+        case .masterDexcomG6UsesCalibration, .masterSibionicsGS1UsesCalibration:
             return Texts_HomeView.postProcessingAdjustmentDisabledBecauseSensorIsCalibrated
         }
     }
@@ -1355,6 +1355,8 @@ class BgPostProcessingManager {
     private enum AdjustmentDisabledReason {
         case masterLibreUsesCalibration
         case masterDexcomG6UsesCalibration
+        /// Sibionics GS1 always uses the xDrip Libre 1 calibrator and has no native algorithm to switch to
+        case masterSibionicsGS1UsesCalibration
     }
 
     private func adjustmentDisabledReasonForCurrentSource() -> AdjustmentDisabledReason? {
@@ -1366,7 +1368,9 @@ class BgPostProcessingManager {
             return currentMasterLibreUsesNativeAlgorithm() ? nil : .masterLibreUsesCalibration
         case .dexcom:
             return currentMasterSourceIsDexcomG6() ? .masterDexcomG6UsesCalibration : nil
-        case .dexcomG7, .Libre3, .medtrumTouchCareNano, .sibionicsGS1:
+        case .sibionicsGS1:
+            return .masterSibionicsGS1UsesCalibration
+        case .dexcomG7, .Libre3, .medtrumTouchCareNano:
             return nil
         }
     }

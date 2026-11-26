@@ -112,6 +112,17 @@ final class GlucoseAdjustmentTests: XCTestCase {
     }
 
     @MainActor
+    func testSibionicsGS1MasterSourceDisablesAdjustmentBecauseItUsesXDripCalibration() throws {
+        try withManager { manager, _, _ in
+            XCTAssertTrue(manager.shouldAllowBgAdjustmentForCurrentSource())
+            UserDefaults.standard.cgmTransmitterTypeAsString = CGMTransmitterType.sibionicsGS1.rawValue
+            XCTAssertFalse(manager.shouldAllowBgAdjustmentForCurrentSource())
+            XCTAssertEqual(manager.bgAdjustmentDisabledMessageForCurrentSource(),
+                           Texts_HomeView.postProcessingAdjustmentDisabledBecauseSensorIsCalibrated)
+        }
+    }
+
+    @MainActor
     private func withManager(_ body: (BgPostProcessingManager, CoreDataManager, Date) throws -> Void) throws {
         let defaults = UserDefaults.standard
         let keys: [UserDefaults.Key] = [.isMaster, .transmitterTypeAsString, .enableAdjustment,
