@@ -125,15 +125,17 @@ Her bildirim için:
 - Kalibrasyon yapılana kadar okuma gösterilmez (ham-değer kalibratörlerinin mevcut davranışı; builder doğrular).
 - `osAidSharingPolicy = .blocked` (Medtrum Nano gibi). Bu aşamada açık onayla bile açılmaz.
 - **Nightscout yüklemesi ve Apple Health yazımı bu aşamada bu sensör tipi için tamamen kapalı** *(tasarım kararı)*. Bugün iki yöneticide de transmitter tipine göre bir kapı yok; `UserDefaults.cgmTransmitterType` üzerinden yeni bir kontrol eklenir. Gerekçe: deneysel değerlerin başka sistemlere (ör. Nightscout'u okuyan başka bir AID'e) sızmaması.
-- **xDrip alarmları bu sensör tipi için bu aşamada kapalı** *(tasarım kararı)*: düşük/yüksek alarmlar güvenilirliği kanıtlanmamış değerlerle çalışmaz, alarm görevi resmi uygulamada kalır. Yalnız "veri gelmiyor" (missed reading) uyarısı açık kalır; resmi uygulamanın bağlantısının düştüğünü fark ettirir.
+- **xDrip'in glikoz değerine dayalı alarmları bu sensör tipi için bu aşamada kapalı** *(tasarım kararı)*: güvenilirliği kanıtlanmamış değerlerle çalışmazlar, bu alarm görevi resmi uygulamada kalır. Kapalı olanlar: `verylow`, `low`, `high`, `veryhigh`, `fastdrop`, `fastrise`. Geri kalan her şey açık kalır, `notlooping`, `missedreading` (resmi uygulamanın bağlantısının düştüğünü fark ettirir) ve `calibration` (kalibrasyon isteği) dahil.
+- Kaynak değişince birikmiş verinin sızmaması: bu tip etkinken (master) dışa aktarma imleçleri (OS-AID, Nightscout, HealthKit, Dexcom Share) dışa aktarmaya izin veren bir kaynağa (başka tip, tip yok, follower) geçişte ve her engellenen dışa aktarma denemesinde "şimdi"ye ilerletilir; OS-AID paylaşımının 30 dakikalık geri bakışı bu ana kadar inmez.
 - İlk eklemede bir kerelik uyarı: "Bu deneysel bir özelliktir. Değerler parmak ucu ile kalibre edilir ve resmi uygulamadan sapabilir. Tedavi kararlarınızı resmi uygulamaya göre verin. Resmi Sibionics uygulamasını kapatmayın."
 
 ### 6.6 Tanılama ve log
 
-- Yeni trace kategorisi `categoryCGMSibionicsGS1`; `TroubleshootingLog` ve trace dosyasına dahil.
+- Yeni trace kategorisi `categoryCGMSibionicsGS1`. Kanıt (ham paketler, kayıtlar, `SIBCMP`/`SIBCAL` satırları, bağlantı olayları) **trace dosyasındadır**; müşterinin gördüğü `TroubleshootingLog` (Etkinlik Günlüğü) yalnız genel girdileri taşır (ör. CGM bağlandı/koptu, kabul edilen glikoz).
 - Log'a yazılanlar: `retrieveConnected` sonuçları, servis ve karakteristik keşfi, `180A` ve batarya değerleri, her bildirimin ham ve çözülmüş hex'i, sınıflandırma sonucu, glikoz kayıtları (index, itime, temp, current, mmol/L, dump, extra, reindex), watchdog ve yeniden bağlanma olayları, engellenen yazma denemeleri.
-- **Karşılaştırma için:** her işlenen kayıt için tek satırlık sabit biçimli bir log satırı (`SIBCMP;<unix ms>;<index>;<raw mmol>;<temp>;<calibrated mg/dL or ->`), böylece müşterinin resmi uygulamadan gönderdiği ekran görüntüleri veya dışa aktarmaları ile sonradan zamana göre eşleştirilebilir.
-- Peripheral detay ekranında salt okunur satırlar: Bağlantı durumu, Firmware tipi (Eski/V120), Batarya, Son indeks, Son ham değer, Son paket zamanı, Bilinmeyen paket sayısı.
+- **Karşılaştırma için:** her işlenen kayıt için tek satırlık sabit biçimli bir log satırı (`SIBCMP;<unix ms>;<index>;<raw mmol>;<temp>;<calibrated mg/dL or ->`), böylece müşterinin resmi uygulamadan gönderdiği ekran görüntüleri veya dışa aktarmaları ile sonradan zamana göre eşleştirilebilir. Transmitter katmanında kalibre değer henüz yoktur (`-`); kalibratör okumayı oluşturduktan sonra ayrıca `SIBCAL;<unix ms>;<calculatedValue mg/dL>;<raw mg/dL>` yazılır, iki satır zaman damgasıyla eşleşir.
+- Ek triage satırları: `LINK-OWNER official|xdrip` (bağlantıyı kim kurdu), her `retrieveConnected` denemesinde bağlı tüm `FF30` cihazlarının sayısı ve ad/kimlikleri, `LAYOUT-MISMATCH` (kayıt düzeninden sonra fazladan bayt), `UNLISTED-CMD` (geçerli çerçeve, bilinmeyen komut), `CLOCK-MISMATCH` (sensör saati ile telefon saati arasında 1 günden fazla fark).
+- Peripheral detay ekranında salt okunur satırlar: Bağlantı durumu, Firmware tipi (Eski/V120), Batarya, Son indeks, Son ham değer (kalibre edilmemiş), Son paket zamanı, Bilinmeyen paket sayısı.
 
 ### 6.7 Test
 

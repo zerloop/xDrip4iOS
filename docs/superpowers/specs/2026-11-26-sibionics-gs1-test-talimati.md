@@ -50,13 +50,15 @@ Açık kalan uyarılar:
 - Kalibrasyon isteği uyarısı
 - **Veri kaybı (eksik okuma) uyarısı**: Bu uyarı gelirse resmi uygulamanın bağlantısı kopmuş demektir. Resmi uygulamayı açıp sensöre bağlı olduğunu kontrol edin.
 
+Not: Bu sensör için xDrip'te **sensör batarya alarmı yoktur**. Sensör bataryasını resmi uygulamadan takip edin.
+
 ## 6. Bizden istenenler
 
 **Günde 2 veya 3 kez:**
-Resmi Sibionics uygulamasının ana ekranının **ekran görüntüsünü** alın. Saatin görünmesi önemli. Aynı anda xDrip'in **Ana Ekran**'ının da ekran görüntüsünü alın (xDrip'in kalibre edilmiş değeri kayıt dosyasında görünmez, karşılaştırma için buna ihtiyacımız var). Görüntüleri bize gönderin.
+Resmi Sibionics uygulamasının ana ekranının **ekran görüntüsünü** alın. Saatin görünmesi önemli. Aynı anda xDrip'in **Ana Ekran**'ının da ekran görüntüsünü alın (kayıt dosyası xDrip'in değerlerini de içerir, ama ekranda ne gördüğünüzü karşılaştırmak için ekran görüntüsüne de ihtiyacımız var). Görüntüleri bize gönderin.
 
 **Günde bir kez:**
-xDrip'te **Cihazlar** sekmesinde **Sibionics GS1** sensörüne dokunun. Açılan ekranda şu satırlar var: Bağlantı durumu, Firmware, Batarya, Son indeks, Son ham değer, Son paket zamanı, Bilinmeyen paket sayısı. Bu ekranın **ekran görüntüsünü** gönderin.
+xDrip'te **Cihazlar** sekmesinde **Sibionics GS1** sensörüne dokunun. Açılan ekranda şu satırlar var: Bağlantı durumu, Firmware, Batarya, Son indeks, Son ham değer (kalibre edilmemiş), Son paket zamanı, Bilinmeyen paket sayısı. Bu ekranın **ekran görüntüsünü** gönderin.
 
 **Her gün, beklemeden (bir şey ters gitmese bile):**
 Kayıt dosyasını bize gönderin:
@@ -66,7 +68,7 @@ Kayıt dosyasını bize gönderin:
 3. **Gelişmiş ayarları göster** anahtarını açın.
 4. **Sorun Raporunu Paylaş**'a dokunun.
 5. Açılan **Sorun Raporu** ekranında **Raporu Paylaş**'a dokunun.
-6. WhatsApp veya e-posta ile bize gönderin.
+6. Ekibimizin size bildirdiği kanaldan (ör. e-posta) bize gönderin.
 
 Dikkat:
 - **Gelişmiş ayarları göster** anahtarı yaklaşık 2 dakika sonra ve Ayarlar'ı her yeniden açtığınızda kendiliğinden kapanır. Her seferinde yeniden açın.
@@ -76,6 +78,7 @@ Dikkat:
 
 **Notlar:**
 Test sırasında yaptığınız şeyleri kısaca not edin. Örneğin: telefonu yeniden başlattım, resmi uygulamayı kapattım, sensörü değiştirdim, Bluetooth'u kapatıp açtım. Saat bilgisi de ekleyin.
+Yeni sensör taktığınızda saatini not edin.
 
 ## 7. Sorun olursa
 
