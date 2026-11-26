@@ -432,6 +432,9 @@ extension BluetoothPeripheralType {
             return .followerHeartbeat
         case .MedtrumTouchCareNanoType:
             return .medtrumNano
+        case .SibionicsGS1Type:
+            // no dedicated help page yet, use the generic direct CGM guide
+            return .addDirectCGM
         }
     }
 }

@@ -592,6 +592,8 @@ extension BluetoothPeripheralType {
             return "Bubble/Mini/Nano"
         case .MedtrumTouchCareNanoType:
             return "Medtrum Nano Pump"
+        case .SibionicsGS1Type:
+            return "Sibionics GS1 (Deneysel, resmi uygulamayla)"
         default:
             return rawValue
         }

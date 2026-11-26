@@ -766,6 +766,15 @@ class Trace {
                                 traceInfo.appendStringAndNewLine("        Firmware: " + firmware)
                             }
                         }
+
+                    case .SibionicsGS1Type:
+                        if let sibionicsGS1 = blePeripheral.sibionicsGS1 {
+
+                            traceInfo.appendStringAndNewLine("        Type: " + bluetoothPeripheralType.rawValue)
+                            if let firmware = sibionicsGS1.firmware {
+                                traceInfo.appendStringAndNewLine("        Firmware: " + firmware)
+                            }
+                        }
                     }
                 }
                 

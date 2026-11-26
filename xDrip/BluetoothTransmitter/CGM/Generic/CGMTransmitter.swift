@@ -198,14 +198,39 @@ enum CGMTransmitterType:String, CaseIterable {
     /// Keep this raw value stable because it is persisted in UserDefaults.
     case medtrumTouchCareNano = "Medtrum Nano"
 
+    /// Sibionics GS1, passive co-listener next to the official Sibionics app (experimental).
+    /// Keep this raw value stable because it is persisted in UserDefaults.
+    case sibionicsGS1 = "Sibionics GS1"
+
     /// Direct Medtrum Nano glucose is already consumed by the connected pump and must not be
     /// exported as an independent CGM source to another OS-AID system.
     var osAidSharingPolicy: OSAidSharingPolicy {
         switch self {
-        case .medtrumTouchCareNano:
+        case .medtrumTouchCareNano, .sibionicsGS1:
             return .blocked
         default:
             return .allowed
+        }
+    }
+
+    /// false when glucose from this transmitter type must not be exported (Nightscout BG upload,
+    /// HealthKit, Dexcom Share). Experimental passive sources stay local only.
+    var allowsGlucoseExport: Bool {
+        switch self {
+        case .sibionicsGS1:
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// false when glucose alarms (other than missed reading) must not fire for this transmitter type.
+    var allowsGlucoseAlarms: Bool {
+        switch self {
+        case .sibionicsGS1:
+            return false
+        default:
+            return true
         }
     }
 
@@ -222,6 +247,9 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .medtrumTouchCareNano:
             return .Medtrum
+
+        case .sibionicsGS1:
+            return .Sibionics
 
         }
         
@@ -256,6 +284,10 @@ enum CGMTransmitterType:String, CaseIterable {
             // its internal sensor record from the sensorAge we pass with each reading.
             return true
 
+        case .sibionicsGS1:
+            // the official app owns the sensor lifecycle; a new session is inferred from the packets.
+            return true
+
         }
     }
     
@@ -277,6 +309,10 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .medtrumTouchCareNano:
             // EasyPatch owns sensor lifecycle. xDrip should not offer a manual start UI.
+            return false
+
+        case .sibionicsGS1:
+            // the official Sibionics app owns sensor lifecycle.
             return false
 
         }
@@ -305,6 +341,10 @@ enum CGMTransmitterType:String, CaseIterable {
             // No pump-battery surface in xDrip. Reuse the generic threshold so the UI has a sane default.
             return ConstantsDefaultAlertLevels.defaultBatteryAlertLevelLibre2
 
+        case .sibionicsGS1:
+            // no battery surface; reuse the generic threshold like Medtrum.
+            return ConstantsDefaultAlertLevels.defaultBatteryAlertLevelLibre2
+
         }
     }
     
@@ -329,7 +369,7 @@ enum CGMTransmitterType:String, CaseIterable {
         case .dexcomG7:
             return "voltB"
 
-        case .medtrumTouchCareNano:
+        case .medtrumTouchCareNano, .sibionicsGS1:
             return ""
 
         }
@@ -395,6 +435,9 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .medtrumTouchCareNano:
             return "Medtrum Nano Pump CGM"
+
+        case .sibionicsGS1:
+            return "Sibionics GS1 (experimental, passive)"
             
         default:
             return self.rawValue

@@ -2019,6 +2019,10 @@ import AppIntents
             // calibration factor decoded from each packet, so xDrip should not run its own calibrator.
             calibrator = NoCalibrator()
 
+        case .sibionicsGS1:
+            // Sibionics GS1 raw values are calibrated with the Libre 1 fixed slope calibrator
+            calibrator = Libre1Calibrator()
+
         }
         
         trace("in getCalibrator, calibrator = %{public}@", log: log, category: ConstantsLog.categoryRootView, type: .info, calibrator.description())
