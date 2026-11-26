@@ -9,6 +9,8 @@ struct SibionicsGS1SessionState: Equatable {
     var sensorStartDate: Date?
     /// time stamp of the newest emitted record
     var lastReadingDate: Date?
+    /// raw (unclamped) time stamp of the newest record processed in any way (emitted or skipped)
+    var lastRecordDate: Date? = nil
 }
 
 struct SibionicsGS1SessionResult {
@@ -38,10 +40,15 @@ enum SibionicsGS1Session {
                 record = SibionicsGS1Record(index: original.index, timeStamp: now, temperatureC: original.temperatureC, rawMmol: original.rawMmol, dump: original.dump, extra: original.extra)
             }
 
-            if record.index <= state.lastReceivedIndex {
+            if original.index == state.lastReceivedIndex {
 
-                if let lastReadingDate = state.lastReadingDate, record.timeStamp > lastReadingDate {
-                    // index went back while time moved on: new sensor
+                skipped.append((record: record, reason: "duplicate"))
+                continue
+
+            } else if original.index < state.lastReceivedIndex {
+
+                // index went back while (raw) time moved on: new sensor
+                if state.lastRecordDate == nil || original.timeStamp > state.lastRecordDate! {
                     state.lastReceivedIndex = -1
                     state.sensorStartDate = nil
                     state.lastReadingDate = nil
@@ -51,6 +58,12 @@ enum SibionicsGS1Session {
                     continue
                 }
 
+            }
+
+            if let lastRecordDate = state.lastRecordDate, state.lastReceivedIndex != -1, lastRecordDate > original.timeStamp {
+                // keep the newest raw time stamp
+            } else {
+                state.lastRecordDate = original.timeStamp
             }
 
             if state.sensorStartDate == nil {
