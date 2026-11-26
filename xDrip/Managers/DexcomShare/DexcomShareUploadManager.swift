@@ -159,6 +159,11 @@ struct DexcomShareUploadBatch {
 
     func uploadLatestBgReadings(lastConnectionStatusChangeTimeStamp: Date?) {
         reconcileConfiguration()
+        // experimental passive sources (Sibionics GS1) must never be uploaded to Dexcom Share
+        guard defaults.activeSourceAllowsGlucoseExport else {
+            trace("in uploadLatestBgReadings, returning because the active CGM source does not allow glucose export", log: log, category: ConstantsLog.categoryDexcomShareUploadManager, type: .info)
+            return
+        }
         guard uploadTask == nil, canUpload else { return }
         let currentGeneration = generation
         uploadTask = Task { [weak self] in

@@ -3016,6 +3016,20 @@ extension UserDefaults {
         }
     }
 
+    /// false when the active direct source (master mode) must not have its glucose exported
+    /// (Nightscout BG upload, HealthKit, Dexcom Share). Follower mode and an unconfigured source are never gated.
+    var activeSourceAllowsGlucoseExport: Bool {
+        guard isMaster else { return true }
+        return cgmTransmitterType?.allowsGlucoseExport ?? true
+    }
+
+    /// false when the active direct source (master mode) must not raise glucose alarms (missed reading excepted).
+    /// Follower mode and an unconfigured source are never gated.
+    var activeSourceAllowsGlucoseAlarms: Bool {
+        guard isMaster else { return true }
+        return cgmTransmitterType?.allowsGlucoseAlarms ?? true
+    }
+
     /// Safety policy for the active direct or follower CGM source.
     /// An unconfigured direct source remains allowed, matching the default for existing sources.
     var activeOSAidSharingPolicy: OSAidSharingPolicy {

@@ -862,8 +862,20 @@ public class AlertManager: NSObject {
         }
     }
     
+    /// whether an alert of this kind may fire for the active source. Missed reading is always permitted,
+    /// all other alerts are blocked when the source does not allow glucose alarms.
+    static func alertIsPermitted(_ kind: AlertKind, sourceAllowsAlarms: Bool) -> Bool {
+        return sourceAllowsAlarms || kind == .missedreading
+    }
+    
     /// will check if the alert of type alertKind needs to be fired and also fires it, plays the sound, and if yes returns true, otherwise false
     private func checkAlertAndFire(alertKind: AlertKind, lastBgReading: BgReading?, lastButOneBgReading: BgReading?, lastCalibration: Calibration?, transmitterBatteryInfo: TransmitterBatteryInfo?, deviceStatus: NotLoopingDeviceStatus? = nil) -> Bool {
+        // experimental passive sources (Sibionics GS1) must not raise glucose alarms, only missed reading
+        if !AlertManager.alertIsPermitted(alertKind, sourceAllowsAlarms: UserDefaults.standard.activeSourceAllowsGlucoseAlarms) {
+            trace("in checkAlertAndFire, alert '%{public}@' is not permitted because the active CGM source does not allow glucose alarms", log: log, category: ConstantsLog.categoryAlertManager, type: .info, alertKind.descriptionForLogging())
+            return false
+        }
+        
         /// This is only for missed reading alert. How many minutes between now and the moment the snooze expires (meaning when is it not snoozed anymore)
         ///
         /// will be initialized later

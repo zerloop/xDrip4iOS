@@ -126,6 +126,12 @@ public class HealthKitManager: NSObject {
             return
         }
         
+        // experimental passive sources (Sibionics GS1) must never be exported to HealthKit
+        if !UserDefaults.standard.activeSourceAllowsGlucoseExport {
+            trace("in storeBgReadings, returning because the active CGM source does not allow glucose export", log: log, category: ConstantsLog.categoryHealthKitManager, type: .info)
+            return
+        }
+        
         // bloodGlucoseType should not be nil
         guard let bloodGlucoseType = bloodGlucoseType else { return }
         

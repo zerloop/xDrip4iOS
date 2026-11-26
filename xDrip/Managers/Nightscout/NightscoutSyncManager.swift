@@ -229,12 +229,14 @@ public class NightscoutSyncManager: NSObject, ObservableObject {
     
     // MARK: - public functions
 
+    /// Every Nightscout BG write path (live upload, replacement, post-processing, queued handoff) goes through this gate,
+    /// so a source that does not allow glucose export (experimental passive sources) is blocked everywhere.
     public func shouldAllowNightscoutBgWrites() -> Bool {
-        UserDefaults.standard.dataFlowPolicy.exportsGlucoseToNightscout
+        UserDefaults.standard.activeSourceAllowsGlucoseExport && UserDefaults.standard.dataFlowPolicy.exportsGlucoseToNightscout
     }
     
     public func shouldAllowNightscoutBgPostProcessingWrites() -> Bool {
-        UserDefaults.standard.dataFlowPolicy.exportsGlucoseToNightscout
+        UserDefaults.standard.activeSourceAllowsGlucoseExport && UserDefaults.standard.dataFlowPolicy.exportsGlucoseToNightscout
     }
 
     public func replacePostProcessingNotesInNightscout(notesToDelete: [TreatmentEntry], noteToUpload: TreatmentEntry) {
@@ -305,6 +307,12 @@ public class NightscoutSyncManager: NSObject, ObservableObject {
         // and nightscoutURL exists
         guard UserDefaults.standard.nightscoutEnabled, UserDefaults.standard.nightscoutUrl != nil else {
             trace("in uploadLatestBgReadings, returning because Nightscout is disabled or URL is missing", log: oslog, category: ConstantsLog.categoryNightscoutSyncManager, type: .info)
+            return
+        }
+        
+        // experimental passive sources (Sibionics GS1) must never have their glucose uploaded
+        if !UserDefaults.standard.activeSourceAllowsGlucoseExport {
+            trace("in uploadLatestBgReadings, returning because the active CGM source does not allow glucose export", log: oslog, category: ConstantsLog.categoryNightscoutSyncManager, type: .info)
             return
         }
         
