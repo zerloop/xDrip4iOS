@@ -418,8 +418,18 @@ class BluetoothPeripheralManager: NSObject {
 
                 case .SibionicsGS1Type:
 
-                    // the Sibionics GS1 transmitter is not available yet, no transmitter is created
-                    trace("in getBluetoothTransmitter, case SibionicsGS1Type, transmitter not yet supported, returning nil", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+                    if let sibionicsGS1 = bluetoothPeripheral as? SibionicsGS1 {
+
+                        if let cgmTransmitterDelegate = cgmTransmitterDelegate {
+
+                            newTransmitter = CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+
+                        } else {
+
+                            trace("in getBluetoothTransmitter, case SibionicsGS1Type but cgmTransmitterDelegate is nil, looks like a coding error ", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+
+                        }
+                    }
 
                 }
                 
@@ -506,8 +516,9 @@ class BluetoothPeripheralManager: NSObject {
                 }
 
             case .SibionicsGS1Type:
-                // no Sibionics GS1 transmitter class exists yet, so no transmitter can match this type
-                break
+                if bluetoothTransmitter is CGMSibionicsGS1Transmitter {
+                    return .SibionicsGS1Type
+                }
                 
             }
             
@@ -522,7 +533,7 @@ class BluetoothPeripheralManager: NSObject {
     ///     - transmitterId : only for transmitter types that need it (at the moment only Dexcom)
     ///     - dexcomG6BluetoothSlot: the role to use when creating a temporary G6 transmitter
     ///     - bluetoothTransmitterDelegate : if not nil then this bluetoothTransmitterDelegate will be used when creating bluetoothTransmitter, otherwise self is used
-    public func createNewTransmitter(type: BluetoothPeripheralType, transmitterId: String?, dexcomG6BluetoothSlot: DexcomG6BluetoothSlot, dexcomConfiguration: DexcomAddConfiguration? = nil, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate?) -> BluetoothTransmitter? {
+    public func createNewTransmitter(type: BluetoothPeripheralType, transmitterId: String?, dexcomG6BluetoothSlot: DexcomG6BluetoothSlot, dexcomConfiguration: DexcomAddConfiguration? = nil, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate?) -> BluetoothTransmitter {
         
         switch type {
             
@@ -605,9 +616,11 @@ class BluetoothPeripheralManager: NSObject {
 
         case .SibionicsGS1Type:
 
-            // the Sibionics GS1 transmitter is not available yet
-            trace("in createNewTransmitter, SibionicsGS1Type, transmitter not yet supported, returning nil", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
-            return nil
+            guard let cgmTransmitterDelegate = cgmTransmitterDelegate else {
+                fatalError("in createNewTransmitter, SibionicsGS1Type, cgmTransmitterDelegate is nil")
+            }
+
+            return CGMSibionicsGS1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self, cGMTransmitterDelegate: cgmTransmitterDelegate)
             
         }
         
@@ -1092,11 +1105,18 @@ class BluetoothPeripheralManager: NSObject {
                         let index = insertInBluetoothPeripherals(bluetoothPeripheral: sibionicsGS1)
 
                         if sibionicsGS1.blePeripheral.shouldconnect {
-                            trace("in init, SibionicsGS1Type, transmitter not yet supported, no transmitter created", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
-                        }
 
-                        // the Sibionics GS1 transmitter is not available yet, keep an empty row for it
-                        bluetoothTransmitters.insert(nil, at: index)
+                            bluetoothTransmitters.insert(CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate), at: index)
+
+                            if bluetoothPeripheralType.category() == .CGM {
+                                currentCgmTransmitterAddress = blePeripheral.address
+                            }
+
+                        } else {
+
+                            bluetoothTransmitters.insert(nil, at: index)
+
+                        }
 
                     }
 
@@ -1310,11 +1330,7 @@ extension BluetoothPeripheralManager: BluetoothPeripheralManaging {
         callBackAfterDiscoveringDevice = callback
         
         // create a temporary transmitter of requested type
-        guard let newBluetoothTranmsitter = createNewTransmitter(type: type, transmitterId: transmitterId, dexcomG6BluetoothSlot: dexcomG6BluetoothSlot, dexcomConfiguration: dexcomConfiguration, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self) else {
-            trace("in startScanningForNewDevice, no transmitter could be created for type %{public}@", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error, type.rawValue)
-            callBackForScanningResult?(.unknown)
-            return
-        }
+        let newBluetoothTranmsitter = createNewTransmitter(type: type, transmitterId: transmitterId, dexcomG6BluetoothSlot: dexcomG6BluetoothSlot, dexcomConfiguration: dexcomConfiguration, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self)
         
         // assign transmitterTypeBeingScannedFor, will be needed in case tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is being recreated (search for transmitterTypeBeingScannedFor in BluetoothPeripheralManager+BluetoothTransmitterDelegate
         transmitterTypeBeingScannedFor = type
@@ -1342,7 +1358,8 @@ extension BluetoothPeripheralManager: BluetoothPeripheralManaging {
         if let tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral = tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral {
             
             tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.stopScanning()
-            if tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMLibre3Transmitter {
+            // the passive Sibionics GS1 does not scan, stopScanning does not end its back-off retrieve retries
+            if tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMLibre3Transmitter || tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMSibionicsGS1Transmitter {
                 tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.disconnectAndForget()
                 tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.prepareForRelease()
             }

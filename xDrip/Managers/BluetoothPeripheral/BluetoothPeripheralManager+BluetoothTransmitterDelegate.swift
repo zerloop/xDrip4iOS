@@ -317,12 +317,12 @@ extension BluetoothPeripheralManager: BluetoothTransmitterDelegate {
         // add new bluetoothPeripheral and bluetoothTransmitter to array of bluetoothPeripherals and bluetoothTransmitters
         bluetoothTransmitters.insert(bluetoothTransmitter, at: insertInBluetoothPeripherals(bluetoothPeripheral: newBluetoothPeripheral))
         
-        if bluetoothTransmitter is CGMLibre3Transmitter {
+        if bluetoothTransmitter is CGMLibre3Transmitter || bluetoothTransmitter is CGMSibionicsGS1Transmitter {
             // The saved device now owns this transmitter. Detail-screen scan cleanup must not
             // disconnect/release the active sensor or disable its automatic reconnect path.
             self.tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral = nil
             self.callBackForScanningResult = nil
-            trace("Libre 3 scan handoff complete, active transmitter retained", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .info)
+            trace("%{public}@ scan handoff complete, active transmitter retained", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .info, getTransmitterType(for: bluetoothTransmitter).rawValue)
         }
 
         if let transmitter = bluetoothTransmitter as? CGMLibre3Transmitter,

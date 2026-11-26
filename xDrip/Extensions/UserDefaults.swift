@@ -425,6 +425,8 @@ extension UserDefaults {
         case licenseInfoAccepted = "licenseInfoAccepted"
         /// used to allow the user to dismiss the lock screen warning forever
         case lockScreenDontShowAgain = "lockScreenDontShowAgain"
+        /// the user acknowledged the one-time experimental warning before adding a Sibionics GS1
+        case sibionicsGS1ExperimentalWarningAcknowledged = "sibionicsGS1ExperimentalWarningAcknowledged"
 
         // M5Stack
 
@@ -2546,6 +2548,16 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.lockScreenDontShowAgain.rawValue)
+        }
+    }
+
+    /// did the user acknowledge the one-time Sibionics GS1 experimental warning?
+    var sibionicsGS1ExperimentalWarningAcknowledged: Bool {
+        get {
+            return bool(forKey: Key.sibionicsGS1ExperimentalWarningAcknowledged.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.sibionicsGS1ExperimentalWarningAcknowledged.rawValue)
         }
     }
 

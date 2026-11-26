@@ -175,6 +175,7 @@ final class BluetoothPeripheralDisplayStatusTests: XCTestCase {
         XCTAssertFalse(BluetoothPeripheralType.Libre3HeartBeatType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.OmniPodHeartBeatType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.MedtrumTouchCareNanoType.usesIntermittentConnection)
+        XCTAssertFalse(BluetoothPeripheralType.SibionicsGS1Type.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.M5StackType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.M5StickCType.usesIntermittentConnection)
     }
@@ -308,4 +309,137 @@ private final class ConnectionStatusCGMDelegateStub: CGMTransmitterDelegate {
     func sensorNotDetected() {}
     func cgmTransmitterInfoReceived(glucoseData: inout [GlucoseData], transmitterBatteryInfo: TransmitterBatteryInfo?, sensorAge: TimeInterval?) {}
     func errorOccurred(xDripError: XdripError) {}
+}
+
+/// App-wide wiring of the passive Sibionics GS1 co-listener: manager, add flow, warning and diagnostics.
+final class SibionicsGS1WiringTests: XCTestCase {
+
+    /// the manager holds its CGM delegate weakly
+    private let cgmDelegate = ConnectionStatusCGMDelegateStub()
+
+    private func makeManager(_ coreDataManager: CoreDataManager) -> BluetoothPeripheralManager {
+        BluetoothPeripheralManager(
+            coreDataManager: coreDataManager,
+            cgmTransmitterDelegate: cgmDelegate,
+            messageHandler: { _, _ in },
+            heartBeatFunction: nil,
+            cgmTransmitterInfoChanged: {}
+        )
+    }
+
+    func testAddFlowCreatesThePassiveSibionicsTransmitter() {
+        let manager = makeManager(CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName))
+
+        let transmitter = manager.createNewTransmitter(type: .SibionicsGS1Type, transmitterId: nil, dexcomG6BluetoothSlot: .defaultSlot, bluetoothTransmitterDelegate: nil)
+        defer { transmitter.prepareForRelease() }
+
+        XCTAssertTrue(transmitter is CGMSibionicsGS1Transmitter)
+        XCTAssertEqual(manager.getTransmitterType(for: transmitter), .SibionicsGS1Type)
+    }
+
+    func testStoredSibionicsPeripheralGetsItsTransmitter() throws {
+        let coreDataManager = CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName)
+        let gs1 = SibionicsGS1(address: "test-gs1", name: "GS1", alias: nil, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+        // disabled, so loading it does not select it as the app's CGM source
+        gs1.blePeripheral.shouldconnect = false
+        coreDataManager.saveChanges()
+
+        let manager = makeManager(coreDataManager)
+        XCTAssertNil(manager.getBluetoothTransmitter(for: gs1, createANewOneIfNecesssary: false))
+
+        let transmitter = try XCTUnwrap(manager.getBluetoothTransmitter(for: gs1, createANewOneIfNecesssary: true))
+        defer { transmitter.prepareForRelease() }
+
+        XCTAssertTrue(transmitter is CGMSibionicsGS1Transmitter)
+        XCTAssertEqual(transmitter.deviceAddress, "test-gs1")
+    }
+
+    func testAddFlowKeepsWaitingForTheOfficialAppConnection() {
+        // the passive transmitter never scans, it reports alreadyScanning/connecting while it retrieves with back-off
+        for result: BluetoothTransmitter.startScanningResult in [.alreadyScanning, .connecting] {
+            XCTAssertTrue(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .SibionicsGS1Type, scanningResult: result))
+        }
+        XCTAssertFalse(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .SibionicsGS1Type, scanningResult: .poweredOff))
+        XCTAssertFalse(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .DexcomType, scanningResult: .alreadyScanning))
+        XCTAssertTrue(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .Libre3Type, scanningResult: .connecting))
+    }
+
+    func testAddFlowFooterAsksToOpenTheOfficialApp() {
+        XCTAssertEqual(
+            BluetoothPeripheralDetailState.sibionicsGS1AddFlowFooter(type: .SibionicsGS1Type, hasPeripheral: false, isWaiting: true),
+            "Resmi Sibionics uygulamasını açın ve sensörün bağlı olduğundan emin olun."
+        )
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1AddFlowFooter(type: .SibionicsGS1Type, hasPeripheral: true, isWaiting: false))
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1AddFlowFooter(type: .Libre2Type, hasPeripheral: false, isWaiting: true))
+    }
+
+    func testTransmitterStatusTextsAreLocalised() {
+        XCTAssertEqual(CGMSibionicsGS1Transmitter.officialAppNotConnectedMessage, Texts_BluetoothPeripheralView.sibionicsGS1StatusOfficialAppNotConnected)
+        XCTAssertEqual(CGMSibionicsGS1Transmitter.receivingMessage, Texts_BluetoothPeripheralView.sibionicsGS1StatusReceiving)
+    }
+
+    func testExperimentalWarningTextMatchesTheSpec() {
+        XCTAssertEqual(
+            Texts_BluetoothPeripheralView.sibionicsGS1ExperimentalWarning,
+            "Bu deneysel bir özelliktir. Değerler parmak ucu ile kalibre edilir ve resmi uygulamadan sapabilir. Tedavi kararlarınızı resmi uygulamaya göre verin. Resmi Sibionics uygulamasını kapatmayın."
+        )
+    }
+
+    func testExperimentalWarningIsShownOnlyOnce() throws {
+        let suite = "SibionicsGS1WiringTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(defaults.sibionicsGS1ExperimentalWarningAcknowledged)
+        XCTAssertNotNil(BluetoothPeripheralDetailState.sibionicsGS1ExperimentalWarningNotice(type: .SibionicsGS1Type, defaults: defaults))
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1ExperimentalWarningNotice(type: .MedtrumTouchCareNanoType, defaults: defaults))
+
+        defaults.sibionicsGS1ExperimentalWarningAcknowledged = true
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1ExperimentalWarningNotice(type: .SibionicsGS1Type, defaults: defaults))
+    }
+
+    func testSibionicsRuntimeStateIsNotPortableInBackups() {
+        XCTAssertFalse(BackupService.isPortableSetting("sibionicsGS1.lastReceivedIndex"))
+        XCTAssertFalse(BackupService.isPortableSetting("sibionicsGS1.sensorStartDate"))
+        XCTAssertFalse(BackupService.isPortableSetting(UserDefaults.Key.sibionicsGS1ExperimentalWarningAcknowledged.rawValue))
+    }
+
+    func testDiagnosticsRowsAreReadOnlyAndOrdered() {
+        var diagnostics = SibionicsGS1Diagnostics()
+        diagnostics.firmware = .v120
+        diagnostics.batteryPercent = 87
+        diagnostics.lastIndex = 1234
+        diagnostics.lastRawMmol = 6.4
+        diagnostics.lastPacketDate = Date(timeIntervalSince1970: 1_800_000_000)
+        diagnostics.unknownPacketCount = 3
+        diagnostics.statusMessage = "Glikoz verisi alınıyor."
+
+        let rows = SibionicsGS1DiagnosticsRows.make(diagnostics: diagnostics)
+
+        XCTAssertEqual(rows.map(\.title), [
+            "Bağlantı durumu", "Firmware", "Batarya", "Son indeks", "Son ham değer", "Son paket zamanı", "Bilinmeyen paket sayısı"
+        ])
+        XCTAssertEqual(rows[0].detail, "Glikoz verisi alınıyor.")
+        XCTAssertEqual(rows[1].detail, "V120")
+        XCTAssertEqual(rows[2].detail, "87 %")
+        XCTAssertEqual(rows[3].detail, "1234")
+        XCTAssertEqual(rows[4].detail, "6.4 mmol/L")
+        XCTAssertEqual(rows[5].detail, Date(timeIntervalSince1970: 1_800_000_000).toStringInUserLocale(timeStyle: .medium, dateStyle: .short))
+        XCTAssertEqual(rows[6].detail, "3")
+    }
+
+    func testDiagnosticsRowsWithoutDataStayEmpty() {
+        var diagnostics = SibionicsGS1Diagnostics()
+        diagnostics.firmware = .legacy
+
+        let rows = SibionicsGS1DiagnosticsRows.make(diagnostics: diagnostics)
+
+        XCTAssertEqual(rows.count, 7)
+        XCTAssertEqual(rows[1].detail, "Eski")
+        XCTAssertNil(rows[2].detail)
+        XCTAssertNil(rows[3].detail)
+        XCTAssertNil(rows[4].detail)
+        XCTAssertNil(rows[5].detail)
+        XCTAssertEqual(rows[6].detail, "0")
+    }
 }

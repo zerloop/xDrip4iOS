@@ -35,6 +35,8 @@ final class BackupService: @unchecked Sendable {
         UserDefaults.Key.medtrumEasyViewConnectionsFetchFailed.rawValue,
         UserDefaults.Key.medtrumEasyViewPreventLogin.rawValue,
         UserDefaults.Key.medtrumEasyViewUserType.rawValue,
+        // device specific: the experimental warning must be acknowledged again on a new installation
+        UserDefaults.Key.sibionicsGS1ExperimentalWarningAcknowledged.rawValue,
         UserDefaults.Key.libreLinkUpPreventLogin.rawValue,
         UserDefaults.Key.libreLinkUpCountry.rawValue,
         UserDefaults.Key.libreLinkUpVersion.rawValue,
@@ -1064,6 +1066,8 @@ final class BackupService: @unchecked Sendable {
         !accountKeys.contains(key) && !excludedSettingKeys.contains(key)
             && !key.hasPrefix(UserDefaults.Key.dexcomG7PairingCode.rawValue + "-")
             && !key.hasPrefix(UserDefaults.Key.dexcomG7BluetoothSlot.rawValue + "-")
+            // Sibionics GS1 session state (last received index, sensor start) belongs to the sensor on this phone
+            && !key.hasPrefix("sibionicsGS1.")
     }
 
     private func storedSettings() throws -> [String: BackupPropertyListValue] {

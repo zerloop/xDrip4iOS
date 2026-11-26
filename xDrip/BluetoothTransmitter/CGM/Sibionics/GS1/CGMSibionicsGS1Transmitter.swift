@@ -146,19 +146,19 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         static let lastRecordDate = "sibionicsGS1.lastRecordDate"
     }
 
-    // MARK: - status messages
+    // MARK: - status messages (user visible, localised in Texts_BluetoothPeripheralView)
 
-    static let officialAppNotConnectedMessage = "Resmi Sibionics uygulamasını açın ve sensörün bağlı olduğundan emin olun."
+    static let officialAppNotConnectedMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusOfficialAppNotConnected
 
-    static let connectingMessage = "Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…"
+    static let connectingMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusConnecting
 
-    static let connectedWaitingMessage = "Bağlandı, glikoz verisi bekleniyor."
+    static let connectedWaitingMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusConnectedWaiting
 
-    static let receivingMessage = "Glikoz verisi alınıyor."
+    static let receivingMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusReceiving
 
-    static let resubscribedMessage = "Bir süredir veri gelmedi, abonelik yenilendi."
+    static let resubscribedMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusResubscribed
 
-    static let releasedMessage = "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor."
+    static let releasedMessage = Texts_BluetoothPeripheralView.sibionicsGS1StatusReleased
 
     // MARK: - properties
 

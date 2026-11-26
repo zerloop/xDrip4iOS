@@ -192,3 +192,21 @@
 "bluetoothAccessNotEnabled" = "Bluetooth erişimi etkin değil";
 "bluetoothAccessInstructions" = "Bağlanmak için Ayarlar → Gizlilik ve Güvenlik → Bluetooth yolunu açın ve %@ için erişime izin verin.";
 "bluetoothAccessRestrictedInstructions" = "Aygıt kısıtlamaları Bluetooth erişimini engelliyor. Erişimi etkinleştirmek için Ekran Süresi ayarlarını kontrol edin veya aygıt yöneticinizle iletişime geçin.";
+
+/* Sibionics GS1 passive co-listener */
+"sibionicsGS1ExperimentalWarningTitle" = "Sibionics GS1 (Deneysel)";
+"sibionicsGS1ExperimentalWarning" = "Bu deneysel bir özelliktir. Değerler parmak ucu ile kalibre edilir ve resmi uygulamadan sapabilir. Tedavi kararlarınızı resmi uygulamaya göre verin. Resmi Sibionics uygulamasını kapatmayın.";
+"sibionicsGS1StatusOfficialAppNotConnected" = "Resmi Sibionics uygulamasını açın ve sensörün bağlı olduğundan emin olun.";
+"sibionicsGS1StatusConnecting" = "Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…";
+"sibionicsGS1StatusConnectedWaiting" = "Bağlandı, glikoz verisi bekleniyor.";
+"sibionicsGS1StatusReceiving" = "Glikoz verisi alınıyor.";
+"sibionicsGS1StatusResubscribed" = "Bir süredir veri gelmedi, abonelik yenilendi.";
+"sibionicsGS1StatusReleased" = "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.";
+"sibionicsGS1ConnectionStatus" = "Bağlantı durumu";
+"sibionicsGS1Firmware" = "Firmware";
+"sibionicsGS1FirmwareLegacy" = "Eski";
+"sibionicsGS1Battery" = "Batarya";
+"sibionicsGS1LastIndex" = "Son indeks";
+"sibionicsGS1LastRawValue" = "Son ham değer";
+"sibionicsGS1LastPacketTime" = "Son paket zamanı";
+"sibionicsGS1UnknownPacketCount" = "Bilinmeyen paket sayısı";

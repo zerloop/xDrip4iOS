@@ -677,8 +677,7 @@ final class BluetoothPeripheralDetailState: NSObject, ObservableObject {
         case .MedtrumTouchCareNanoType:
             return makeMedtrumTouchCareNanoSections(bluetoothPeripheral: bluetoothPeripheral)
         case .SibionicsGS1Type:
-            // Sibionics GS1 specific sections are added together with the transmitter UI
-            return []
+            return makeSibionicsGS1Sections(bluetoothPeripheral: bluetoothPeripheral)
         case .M5StackType:
             return makeM5StackSections(bluetoothPeripheral: bluetoothPeripheral, includesSpecificM5StackSection: true)
         case .M5StickCType:
@@ -897,7 +896,7 @@ private extension BluetoothPeripheralDetailState {
                 : Texts_BluetoothPeripheralView.runningInPrimaryMode
         }
 
-        return nil
+        return Self.sibionicsGS1AddFlowFooter(type: expectedBluetoothPeripheralType, hasPeripheral: bluetoothPeripheral != nil, isWaiting: isScanning)
     }
 
     // Primary and co-existence labels are localized text, but the leading symbol
@@ -1375,7 +1374,8 @@ private extension DexcomG7BluetoothSlot {
 
 private extension BluetoothPeripheralDetailState {
     func requestScanForBluetoothPeripheral(type: BluetoothPeripheralType) {
-        guard let notice = type.scanPreparationNotice else {
+        // the Sibionics GS1 experimental warning is shown once, until the user confirms it
+        guard let notice = type.scanPreparationNotice ?? Self.sibionicsGS1ExperimentalWarningNotice(type: type) else {
             scanForBluetoothPeripheral(type: type)
             return
         }
@@ -1385,6 +1385,7 @@ private extension BluetoothPeripheralDetailState {
             message: notice.message,
             primaryButtonTitle: Texts_BluetoothPeripheralView.scan,
             primaryAction: { [weak self] in
+                notice.onAcknowledge?()
                 // Let the confirmation alert dismiss before scanning can publish its result alert.
                 DispatchQueue.main.async {
                     self?.scanForBluetoothPeripheral(type: type)
@@ -1505,8 +1506,9 @@ private extension BluetoothPeripheralDetailState {
         case .alreadyScanning, .alreadyConnected, .connecting:
             trace("in handleScanningResult, scanning not started. Scanning result = %{public}@", log: log, category: ConstantsLog.categoryBluetoothPeripheralViewController, type: .error, startScanningResult.description())
             // A recovered Libre 3 can retrieve its known peripheral and begin connecting before
-            // startScanning returns. Keep the handoff visible until handleFound adopts that device.
-            isScanning = expectedBluetoothPeripheralType == .Libre3Type && bluetoothPeripheral == nil
+            // startScanning returns. The passive Sibionics GS1 never scans: it keeps retrieving the
+            // official app's connection with back-off. Keep the handoff visible until handleFound adopts that device.
+            isScanning = Self.keepsWaitingForNewPeripheral(type: expectedBluetoothPeripheralType, scanningResult: startScanningResult) && bluetoothPeripheral == nil
             if isScanning {
                 explicitlyStartedScanAt = explicitlyStartedScanAt ?? Date()
                 UIApplication.shared.isIdleTimerDisabled = true
@@ -2897,6 +2899,27 @@ private extension BluetoothPeripheralDetailState {
         ]
     }
 
+    func makeSibionicsGS1Sections(bluetoothPeripheral: BluetoothPeripheral) -> [BluetoothPeripheralDetailSection] {
+        guard bluetoothPeripheral is SibionicsGS1 else { return [] }
+
+        // read-only diagnostics of the live transmitter. Without one (disabled) only the default "not trying to connect" status is known
+        let transmitter = bluetoothPeripheralManager?.getBluetoothTransmitter(for: bluetoothPeripheral, createANewOneIfNecesssary: false) as? CGMSibionicsGS1Transmitter
+        var diagnostics = transmitter?.diagnostics ?? SibionicsGS1Diagnostics()
+        if transmitter == nil {
+            diagnostics.statusMessage = Texts_BluetoothPeripheralView.notTryingToConnect
+        }
+
+        return [
+            BluetoothPeripheralDetailSection(
+                id: "sibionics-gs1",
+                title: BluetoothPeripheralType.SibionicsGS1Type.bluetoothPeripheralDisplayTitle,
+                rows: SibionicsGS1DiagnosticsRows.make(diagnostics: diagnostics).map {
+                    row(id: "sibionics-gs1-" + $0.id, title: $0.title, detail: $0.detail)
+                }
+            )
+        ]
+    }
+
     func makeLibreBridgeRows(
         idPrefix: String,
         sensorType: String?,
@@ -2957,9 +2980,70 @@ private extension BluetoothPeripheralDetailState {
     }
 }
 
-private struct BluetoothPeripheralScanPreparationNotice {
+struct BluetoothPeripheralScanPreparationNotice {
     let title: String
     let message: String
+    /// called when the user confirms the notice and scanning starts
+    var onAcknowledge: (() -> Void)? = nil
+}
+
+extension BluetoothPeripheralDetailState {
+    /// true if the add flow keeps showing "waiting" although startScanning did not start a real scan
+    static func keepsWaitingForNewPeripheral(type: BluetoothPeripheralType, scanningResult: BluetoothTransmitter.startScanningResult) -> Bool {
+        switch (type, scanningResult) {
+        case (.Libre3Type, .alreadyScanning), (.Libre3Type, .alreadyConnected), (.Libre3Type, .connecting):
+            return true
+        case (.SibionicsGS1Type, .alreadyScanning), (.SibionicsGS1Type, .connecting):
+            // the passive transmitter is retrieving the official app's connection with back-off
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// footer while adding a Sibionics GS1: the official app must hold the sensor connection
+    static func sibionicsGS1AddFlowFooter(type: BluetoothPeripheralType, hasPeripheral: Bool, isWaiting: Bool) -> String? {
+        guard type == .SibionicsGS1Type, !hasPeripheral, isWaiting else { return nil }
+        return Texts_BluetoothPeripheralView.sibionicsGS1StatusOfficialAppNotConnected
+    }
+
+    /// the one-time experimental warning, nil once the user acknowledged it
+    static func sibionicsGS1ExperimentalWarningNotice(type: BluetoothPeripheralType, defaults: UserDefaults = .standard) -> BluetoothPeripheralScanPreparationNotice? {
+        guard type == .SibionicsGS1Type, !defaults.sibionicsGS1ExperimentalWarningAcknowledged else { return nil }
+        return BluetoothPeripheralScanPreparationNotice(
+            title: Texts_BluetoothPeripheralView.sibionicsGS1ExperimentalWarningTitle,
+            message: Texts_BluetoothPeripheralView.sibionicsGS1ExperimentalWarning,
+            onAcknowledge: { defaults.sibionicsGS1ExperimentalWarningAcknowledged = true }
+        )
+    }
+}
+
+/// read-only diagnostics rows of the Sibionics GS1 detail screen
+struct SibionicsGS1DiagnosticsRows {
+    struct Row: Equatable {
+        let id: String
+        let title: String
+        let detail: String?
+    }
+
+    static func make(diagnostics: SibionicsGS1Diagnostics) -> [Row] {
+        let firmware: String? = diagnostics.firmware.map {
+            switch $0 {
+            case .legacy: return Texts_BluetoothPeripheralView.sibionicsGS1FirmwareLegacy
+            case .v120: return "V120"
+            }
+        }
+
+        return [
+            Row(id: "connection-status", title: Texts_BluetoothPeripheralView.sibionicsGS1ConnectionStatus, detail: diagnostics.statusMessage.isEmpty ? nil : diagnostics.statusMessage),
+            Row(id: "firmware", title: Texts_BluetoothPeripheralView.sibionicsGS1Firmware, detail: firmware),
+            Row(id: "battery", title: Texts_BluetoothPeripheralView.sibionicsGS1Battery, detail: diagnostics.batteryPercent.map { "\($0) %" }),
+            Row(id: "last-index", title: Texts_BluetoothPeripheralView.sibionicsGS1LastIndex, detail: diagnostics.lastIndex.map { $0.description }),
+            Row(id: "last-raw-value", title: Texts_BluetoothPeripheralView.sibionicsGS1LastRawValue, detail: diagnostics.lastRawMmol.map { String(format: "%.1f mmol/L", locale: Locale(identifier: "en_US_POSIX"), $0) }),
+            Row(id: "last-packet-time", title: Texts_BluetoothPeripheralView.sibionicsGS1LastPacketTime, detail: diagnostics.lastPacketDate.map { $0.toStringInUserLocale(timeStyle: .medium, dateStyle: .short) }),
+            Row(id: "unknown-packet-count", title: Texts_BluetoothPeripheralView.sibionicsGS1UnknownPacketCount, detail: diagnostics.unknownPacketCount.description)
+        ]
+    }
 }
 
 private extension BluetoothPeripheralType {

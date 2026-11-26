@@ -488,4 +488,70 @@ class Texts_BluetoothPeripheralView {
     static func readSuccessTimelineAccessibility(success: Double, actual: Int, expected: Int) -> String {
         return String(format: NSLocalizedString("readSuccessTimelineAccessibility", tableName: filename, bundle: Bundle.main, value: "%0.1f percent, %d of %d readings", comment: "Bluetooth peripheral Read Success screen. Accessibility label for an hourly timeline bucket"), success, actual, expected)
     }
+
+    // MARK: - Sibionics GS1 (passive co-listener)
+
+    static let sibionicsGS1ExperimentalWarningTitle: String = {
+        return NSLocalizedString("sibionicsGS1ExperimentalWarningTitle", tableName: filename, bundle: Bundle.main, value: "Sibionics GS1 (Deneysel)", comment: "title of the one-time warning shown before adding a Sibionics GS1 for the first time")
+    }()
+
+    static let sibionicsGS1ExperimentalWarning: String = {
+        return NSLocalizedString("sibionicsGS1ExperimentalWarning", tableName: filename, bundle: Bundle.main, value: "Bu deneysel bir özelliktir. Değerler parmak ucu ile kalibre edilir ve resmi uygulamadan sapabilir. Tedavi kararlarınızı resmi uygulamaya göre verin. Resmi Sibionics uygulamasını kapatmayın.", comment: "one-time warning shown before adding a Sibionics GS1 for the first time")
+    }()
+
+    static let sibionicsGS1StatusOfficialAppNotConnected: String = {
+        return NSLocalizedString("sibionicsGS1StatusOfficialAppNotConnected", tableName: filename, bundle: Bundle.main, value: "Resmi Sibionics uygulamasını açın ve sensörün bağlı olduğundan emin olun.", comment: "Sibionics GS1 status, no sensor connection of the official app was found")
+    }()
+
+    static let sibionicsGS1StatusConnecting: String = {
+        return NSLocalizedString("sibionicsGS1StatusConnecting", tableName: filename, bundle: Bundle.main, value: "Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…", comment: "Sibionics GS1 status, the official app's connection was found and xDrip is connecting")
+    }()
+
+    static let sibionicsGS1StatusConnectedWaiting: String = {
+        return NSLocalizedString("sibionicsGS1StatusConnectedWaiting", tableName: filename, bundle: Bundle.main, value: "Bağlandı, glikoz verisi bekleniyor.", comment: "Sibionics GS1 status, connected but no glucose packet received yet")
+    }()
+
+    static let sibionicsGS1StatusReceiving: String = {
+        return NSLocalizedString("sibionicsGS1StatusReceiving", tableName: filename, bundle: Bundle.main, value: "Glikoz verisi alınıyor.", comment: "Sibionics GS1 status, glucose packets are being received")
+    }()
+
+    static let sibionicsGS1StatusResubscribed: String = {
+        return NSLocalizedString("sibionicsGS1StatusResubscribed", tableName: filename, bundle: Bundle.main, value: "Bir süredir veri gelmedi, abonelik yenilendi.", comment: "Sibionics GS1 status, no data for a while, the notification subscription was renewed")
+    }()
+
+    static let sibionicsGS1StatusReleased: String = {
+        return NSLocalizedString("sibionicsGS1StatusReleased", tableName: filename, bundle: Bundle.main, value: "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.", comment: "Sibionics GS1 status, no data for a long time, the connection is being re-established")
+    }()
+
+    static let sibionicsGS1ConnectionStatus: String = {
+        return NSLocalizedString("sibionicsGS1ConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Bağlantı durumu", comment: "Sibionics GS1 diagnostics row title, connection status")
+    }()
+
+    static let sibionicsGS1Firmware: String = {
+        return NSLocalizedString("sibionicsGS1Firmware", tableName: filename, bundle: Bundle.main, value: "Firmware", comment: "Sibionics GS1 diagnostics row title, firmware type")
+    }()
+
+    static let sibionicsGS1FirmwareLegacy: String = {
+        return NSLocalizedString("sibionicsGS1FirmwareLegacy", tableName: filename, bundle: Bundle.main, value: "Eski", comment: "Sibionics GS1 diagnostics, legacy (unencrypted) firmware")
+    }()
+
+    static let sibionicsGS1Battery: String = {
+        return NSLocalizedString("sibionicsGS1Battery", tableName: filename, bundle: Bundle.main, value: "Batarya", comment: "Sibionics GS1 diagnostics row title, battery")
+    }()
+
+    static let sibionicsGS1LastIndex: String = {
+        return NSLocalizedString("sibionicsGS1LastIndex", tableName: filename, bundle: Bundle.main, value: "Son indeks", comment: "Sibionics GS1 diagnostics row title, last sensor record index")
+    }()
+
+    static let sibionicsGS1LastRawValue: String = {
+        return NSLocalizedString("sibionicsGS1LastRawValue", tableName: filename, bundle: Bundle.main, value: "Son ham değer", comment: "Sibionics GS1 diagnostics row title, last raw value")
+    }()
+
+    static let sibionicsGS1LastPacketTime: String = {
+        return NSLocalizedString("sibionicsGS1LastPacketTime", tableName: filename, bundle: Bundle.main, value: "Son paket zamanı", comment: "Sibionics GS1 diagnostics row title, time of the last glucose packet")
+    }()
+
+    static let sibionicsGS1UnknownPacketCount: String = {
+        return NSLocalizedString("sibionicsGS1UnknownPacketCount", tableName: filename, bundle: Bundle.main, value: "Bilinmeyen paket sayısı", comment: "Sibionics GS1 diagnostics row title, number of unknown packets")
+    }()
 }
