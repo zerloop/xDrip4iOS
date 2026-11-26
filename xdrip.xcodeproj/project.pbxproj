@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4D8100022FE8000100000001 /* SibionicsGS1Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8100012FE8000100000001 /* SibionicsGS1Protocol.swift */; };
+		4D8100042FE8000100000001 /* ConstantsSibionicsGS1.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8100032FE8000100000001 /* ConstantsSibionicsGS1.swift */; };
+		4D8100062FE8000100000001 /* SibionicsGS1ProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8100052FE8000100000001 /* SibionicsGS1ProtocolTests.swift */; };
 		A19A00370000000000000001 /* RepeatingAlarmTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A19A00370000000000000002 /* RepeatingAlarmTests.swift */; };
 		7E7760013000000100000001 /* SensorExpiryReminderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7760013000000100000002 /* SensorExpiryReminderManager.swift */; };
 		7E7760013000000100000003 /* SensorExpiryReminderManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7760013000000100000004 /* SensorExpiryReminderManagerTests.swift */; };
@@ -1001,6 +1004,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4D8100012FE8000100000001 /* SibionicsGS1Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SibionicsGS1Protocol.swift; sourceTree = "<group>"; };
+		4D8100032FE8000100000001 /* ConstantsSibionicsGS1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstantsSibionicsGS1.swift; sourceTree = "<group>"; };
+		4D8100052FE8000100000001 /* SibionicsGS1ProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SibionicsGS1ProtocolTests.swift; sourceTree = "<group>"; };
 		A19A00370000000000000002 /* RepeatingAlarmTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAlarmTests.swift; sourceTree = "<group>"; };
 		7E7760013000000100000002 /* SensorExpiryReminderManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorExpiryReminderManager.swift; sourceTree = "<group>"; };
 		7E7760013000000100000004 /* SensorExpiryReminderManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorExpiryReminderManagerTests.swift; sourceTree = "<group>"; };
@@ -2790,6 +2796,22 @@
 			path = TouchCareNano;
 			sourceTree = "<group>";
 		};
+		4D8100072FE8000100000001 /* Sibionics */ = {
+			isa = PBXGroup;
+			children = (
+				4D8100082FE8000100000001 /* GS1 */,
+			);
+			path = Sibionics;
+			sourceTree = "<group>";
+		};
+		4D8100082FE8000100000001 /* GS1 */ = {
+			isa = PBXGroup;
+			children = (
+				4D8100012FE8000100000001 /* SibionicsGS1Protocol.swift */,
+			);
+			path = GS1;
+			sourceTree = "<group>";
+		};
 		4D9A00013019000100000001 /* ThirdParty */ = {
 			isa = PBXGroup;
 			children = (
@@ -2839,6 +2861,7 @@
 			children = (
 				C2BBCA83D24E98D08C260FC2 /* Libre3 */,
 				BA0709260000000000000002 /* BasalInjectionTests.swift */,
+				4D8100052FE8000100000001 /* SibionicsGS1ProtocolTests.swift */,
 				4F3100153007000100000001 /* BatteryHistoryTests.swift */,
 				4F3200023008000100000001 /* BgReadingTrendTests.swift */,
 				4D7D00013016000200000001 /* BluetoothPeripheralDisplayStatusTests.swift */,
@@ -3716,6 +3739,7 @@
 				F8A389C723203E3E0010F405 /* ConstantsM5Stack.swift */,
 				F8A1586A22EDB967007F5B5D /* ConstantsMaster.swift */,
 				47A05CCB2EF16110004DABE7 /* ConstantsMedtrumEasyView.swift */,
+				4D8100032FE8000100000001 /* ConstantsSibionicsGS1.swift */,
 				F8A389EC23342EB10010F405 /* ConstantsNightscout.swift */,
 				F8A1586022EDB844007F5B5D /* ConstantsNotifications.swift */,
 				476698652BE2572C008EB2A9 /* ConstantsSettingsIcons.swift */,
@@ -3993,6 +4017,7 @@
 				F8F971F023A5915900C3F17D /* Generic */,
 				F8F971D623A5915900C3F17D /* Libre */,
 				4D7180122FE8000100000001 /* Medtrum */,
+				4D8100072FE8000100000001 /* Sibionics */,
 			);
 			path = CGM;
 			sourceTree = "<group>";
@@ -4808,6 +4833,7 @@
 				FBA100040000000000000001 /* FollowerBackgroundKeepAliveManagerTests.swift in Sources */,
 				BA0000020000000000000002 /* NightscoutFollowerGapFillTests.swift in Sources */,
 				BA0709260000000000000001 /* BasalInjectionTests.swift in Sources */,
+				4D8100062FE8000100000001 /* SibionicsGS1ProtocolTests.swift in Sources */,
 				4F2600023002000200000001 /* SensorHealthIssueManagerTests.swift in Sources */,
 				A19A00370000000000000001 /* RepeatingAlarmTests.swift in Sources */,
 				7E7760013000000100000003 /* SensorExpiryReminderManagerTests.swift in Sources */,
@@ -4963,6 +4989,8 @@
 				47F012D62FC9D71700112233 /* DexcomG7AuthSession.swift in Sources */,
 				47F012D82FC9D71700112233 /* DexcomG7ProofSigner.swift in Sources */,
 				4D7180032FE8000100000001 /* CGMMedtrumTouchCareNanoTransmitter.swift in Sources */,
+				4D8100022FE8000100000001 /* SibionicsGS1Protocol.swift in Sources */,
+				4D8100042FE8000100000001 /* ConstantsSibionicsGS1.swift in Sources */,
 				F81FA00A228F53680028C70F /* TextsHomeView.swift in Sources */,
 				F8E3C3AD21FE551C00907A04 /* DexcomCalibrator.swift in Sources */,
 				F8F9723523A5915900C3F17D /* BluetoothTransmitter.swift in Sources */,
