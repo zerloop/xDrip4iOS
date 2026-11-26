@@ -28,13 +28,13 @@ Merhaba, test için teşekkürler. Bu talimat adım adım ilerler. Takıldığı
 3. Kategori olarak **CGM** seçin.
 4. Listeden **Sibionics GS1 (Deneysel, resmi uygulamayla)** seçin.
 5. Bir uyarı çıkacak (bir kereye mahsus). Okuyup onaylayın.
-6. Ekranda **"Resmi Sibionics uygulamasını açın…"** yazısı görünebilir. Resmi uygulama açık ve bağlıysa bir süre içinde xDrip bağlantıyı kendisi bulur ve yazı **"Bağlandı"** ve ardından **"Glikoz verisi alınıyor."** olarak değişir. Birkaç dakika sürebilir, bekleyin.
+6. Ekranda **"Resmi Sibionics uygulamasını açın…"** yazısı görünebilir. Resmi uygulama açık ve bağlıysa bir süre içinde xDrip bağlantıyı kendisi bulur. Yazı sırasıyla **"Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…"**, **"Bağlandı, glikoz verisi bekleniyor."** ve **"Glikoz verisi alınıyor."** olarak değişir. Birkaç dakika sürebilir, bekleyin.
 
 ## 4. İlk değer ve kalibrasyon
 
 1. Sensör ilk takıldığında **60 dakika ısınma** süresi vardır.
 2. Isınma bitene kadar xDrip'te değer görünmez. Bu normaldir.
-3. Isınmadan sonra **bir parmak ucu ölçümü** yapın ve **Ana Ekran**'daki **Kalibre Et** seçeneğiyle değeri girin.
+3. Isınmadan sonra **bir parmak ucu ölçümü** yapın ve değeri girin: **Ana Ekran**'da alttaki araç çubuğunda sensör simgesine (**Sensör**) dokunun, açılan ekranda **Kalibre Et**'e dokunun. (Sensör simgesine biraz uzun basarsanız kalibrasyon ekranı doğrudan açılır.)
 4. xDrip ilk kalibrasyondan **sonra** değer göstermeye başlar. Bundan sonra "kalibrasyon gerekli" uyarısı gelirse yeniden parmak ucu ölçümü girin. Bu uyarılar açıktır.
 5. Değerler resmi uygulamadan bir miktar farklı olabilir. Bu beklenen bir durumdur, farkı bize bildirin.
 
@@ -53,18 +53,26 @@ Açık kalan uyarılar:
 ## 6. Bizden istenenler
 
 **Günde 2 veya 3 kez:**
-Resmi Sibionics uygulamasının ana ekranının **ekran görüntüsünü** alın. Saatin görünmesi önemli. xDrip'in ana ekranından da aynı anda bir ekran görüntüsü alabilirseniz çok iyi olur. Görüntüleri bize gönderin.
+Resmi Sibionics uygulamasının ana ekranının **ekran görüntüsünü** alın. Saatin görünmesi önemli. Aynı anda xDrip'in **Ana Ekran**'ının da ekran görüntüsünü alın (xDrip'in kalibre edilmiş değeri kayıt dosyasında görünmez, karşılaştırma için buna ihtiyacımız var). Görüntüleri bize gönderin.
 
 **Günde bir kez:**
 xDrip'te **Cihazlar** sekmesinde **Sibionics GS1** sensörüne dokunun. Açılan ekranda şu satırlar var: Bağlantı durumu, Firmware, Batarya, Son indeks, Son ham değer, Son paket zamanı, Bilinmeyen paket sayısı. Bu ekranın **ekran görüntüsünü** gönderin.
 
-**Her gün sonunda (veya bir şey ters gittiğinde):**
+**Her gün, beklemeden (bir şey ters gitmese bile):**
 Kayıt dosyasını bize gönderin:
 
 1. Alttaki menüden **Ayarlar** sekmesine girin.
-2. **Sorun Giderme**'ye, sonra **Etkinlik Günlüğü**'ne dokunun.
-3. Sağ üstteki **Paylaş** simgesine (yukarı oku olan kare) dokunun.
-4. Mesajlaşma veya e-posta ile bize gönderin.
+2. En alta inip **Gelişmiş Ayarlar** bölümüne gelin.
+3. **Gelişmiş ayarları göster** anahtarını açın.
+4. **Sorun Raporunu Paylaş**'a dokunun.
+5. Açılan **Sorun Raporu** ekranında **Raporu Paylaş**'a dokunun.
+6. WhatsApp veya e-posta ile bize gönderin.
+
+Dikkat:
+- **Gelişmiş ayarları göster** anahtarı yaklaşık 2 dakika sonra ve Ayarlar'ı her yeniden açtığınızda kendiliğinden kapanır. Her seferinde yeniden açın.
+- **Hata Ayıklama Düzeyini Kullan** anahtarına **dokunmayın**.
+- Dosyayı **her gün** gönderin, ertesi güne bırakmayın. Kayıt dosyaları kendini yeniler (toplam yaklaşık 9 MB); birkaç gün sonra eski veriler silinir ve kaybolur.
+- Rapor sağlık verisi içerir. Sadece test ekibine gönderin, başkasıyla paylaşmayın.
 
 **Notlar:**
 Test sırasında yaptığınız şeyleri kısaca not edin. Örneğin: telefonu yeniden başlattım, resmi uygulamayı kapattım, sensörü değiştirdim, Bluetooth'u kapatıp açtım. Saat bilgisi de ekleyin.
@@ -73,5 +81,12 @@ Test sırasında yaptığınız şeyleri kısaca not edin. Örneğin: telefonu y
 
 - **"Resmi Sibionics uygulamasını açın..." yazısı kalıyor:** Resmi uygulamayı açın, sensöre bağlı olduğunu kontrol edin, birkaç dakika bekleyin.
 - **Hâlâ değer yok:** Isınma (60 dk) ve ilk parmak ucu kalibrasyonunun yapıldığını kontrol edin.
-- **Uzun süredir veri gelmediyse:** xDrip kendiliğinden bağlantıyı yeniler. Düzelmezse Etkinlik Günlüğü'nü ve Cihazlar'daki sensör ekranının görüntüsünü bize gönderin.
+- **Uzun süredir veri gelmediyse:** xDrip kendiliğinden bağlantıyı yeniler. Düzelmezse Sorun Raporu dosyasını (yukarıdaki adımlar) ve Cihazlar'daki sensör ekranının görüntüsünü bize gönderin.
 - Değerlerden şüpheleniyorsanız her zaman resmi uygulamaya ve parmak ucu ölçümüne güvenin.
+
+## 8. Bize bildirin
+
+Lütfen şu iki bilgiyi bir kereye mahsus yazın:
+
+1. Kullandığınız resmi Sibionics uygulamasının **App Store'daki tam adı**.
+2. Sensörünüz **tek parça mı** (sensör ve verici bir arada), yoksa **ayrı, tekrar kullanılan bir verici** mi var?
