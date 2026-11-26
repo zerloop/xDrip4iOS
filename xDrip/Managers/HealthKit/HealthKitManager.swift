@@ -196,6 +196,12 @@ public class HealthKitManager: NSObject {
             return
         }
         
+        // experimental passive sources (Sibionics GS1) must never be exported to HealthKit, also not via post-processing replacement
+        if !UserDefaults.standard.activeSourceAllowsGlucoseExport {
+            trace("in replaceBgReadingsInHealthKit, returning because the active CGM source does not allow glucose export", log: log, category: ConstantsLog.categoryHealthKitManager, type: .info)
+            return
+        }
+        
         guard let bloodGlucoseType = bloodGlucoseType else { return }
         
         let bloodGlucoseUnit = HKUnit(from: "mg/dL")

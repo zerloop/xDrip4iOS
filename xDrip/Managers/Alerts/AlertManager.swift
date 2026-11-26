@@ -862,10 +862,14 @@ public class AlertManager: NSObject {
         }
     }
     
-    /// whether an alert of this kind may fire for the active source. Missed reading is always permitted,
-    /// all other alerts are blocked when the source does not allow glucose alarms.
+    /// alert kinds driven by glucose values; blocked when the source does not allow glucose alarms.
+    /// Explicit set so that any new (non-glucose) kind defaults to permitted.
+    static let glucoseValueAlertKinds: Set<AlertKind> = [.verylow, .low, .high, .veryhigh, .fastdrop, .fastrise, .notlooping]
+    
+    /// whether an alert of this kind may fire for the active source. Only glucose-value-driven alerts are blocked
+    /// when the source does not allow glucose alarms; missed reading, calibration, battery, sensor alerts stay permitted.
     static func alertIsPermitted(_ kind: AlertKind, sourceAllowsAlarms: Bool) -> Bool {
-        return sourceAllowsAlarms || kind == .missedreading
+        return sourceAllowsAlarms || !glucoseValueAlertKinds.contains(kind)
     }
     
     /// will check if the alert of type alertKind needs to be fired and also fires it, plays the sound, and if yes returns true, otherwise false

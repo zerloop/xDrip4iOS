@@ -43,9 +43,13 @@ final class SibionicsGS1SafetyGateTests: XCTestCase {
         XCTAssertTrue(defaults.activeSourceAllowsGlucoseAlarms)
     }
 
-    func testAlarmsBlockedExceptMissedReading() {
+    func testOnlyGlucoseValueAlarmsAreBlocked() {
+        let blocked: Set<AlertKind> = [.verylow, .low, .high, .veryhigh, .fastdrop, .fastrise, .notlooping]
         for kind in AlertKind.allCases {
-            XCTAssertEqual(AlertManager.alertIsPermitted(kind, sourceAllowsAlarms: false), kind == .missedreading, "\(kind)")
+            XCTAssertEqual(AlertManager.alertIsPermitted(kind, sourceAllowsAlarms: false), !blocked.contains(kind), "\(kind)")
+        }
+        for kind in [AlertKind.missedreading, .calibration, .batterylow, .phonebatterylow, .sensorTransmitterFailure, .dexcomG5BatteryLow, .dexcomG7BatteryLow, .sensorEndingSoon, .sensorExpectedExpiry] {
+            XCTAssertTrue(AlertManager.alertIsPermitted(kind, sourceAllowsAlarms: false), "\(kind)")
         }
     }
 
