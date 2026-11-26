@@ -45,10 +45,10 @@ enum ConstantsSibionicsGS1 {
     static let warmupMinutes = 60.0
 
     /// re-subscribe to the notify characteristic if no valid glucose packet was received for this long
-    static let resubscribeAfterSeconds = 300
+    static let resubscribeAfterSeconds: TimeInterval = 300
 
     /// disconnect and re-retrieve the connected peripheral if no valid glucose packet was received for this long
-    static let releaseAfterSeconds = 900
+    static let releaseAfterSeconds: TimeInterval = 900
 
     /// back-off delays (seconds) for re-retrieving connected peripherals
     static let reconnectDelays: [TimeInterval] = [5, 10, 15]
