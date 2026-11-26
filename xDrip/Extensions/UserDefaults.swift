@@ -537,6 +537,10 @@ extension UserDefaults {
         /// timestamp lastest reading shared with Loop/OS-AID
         case timeStampLatestLoopSharedBgReading = "timeStampLatestLoopSharedBgReading"
 
+        /// end of the period in which a source without glucose export (Sibionics GS1) was active. No export path
+        /// may look back before it, see advanceGlucoseExportCursors
+        case glucoseExportFloorTimeStamp = "glucoseExportFloorTimeStamp"
+
         // Trace
         /// should debug level logs be added in trace file or not, and also in NSLog
         case addDebugLevelLogsInTraceFileAndNSLog = "addDebugLevelLogsInTraceFileAndNSLog"
@@ -667,6 +671,7 @@ extension UserDefaults {
             return !bool(forKey: Key.isMaster.rawValue)
         }
         set {
+            advanceGlucoseExportCursorsIfLeavingBlockedSource(newIsMaster: newValue, newTransmitterTypeAsString: cgmTransmitterTypeAsString)
             set(!newValue, forKey: Key.isMaster.rawValue)
         }
     }
@@ -2094,6 +2099,7 @@ extension UserDefaults {
             // if transmittertype has changed then also reset the transmitter id to nil
             // this is also a check to see if transmitterTypeAsString has really changed, because just calling a set without a new value may cause a transmittertype reset in other parts of the call (inclusive stopping sensor etc.)
             if newValue != string(forKey: Key.transmitterTypeAsString.rawValue) {
+                advanceGlucoseExportCursorsIfLeavingBlockedSource(newIsMaster: isMaster, newTransmitterTypeAsString: newValue)
                 set(newValue, forKey: Key.transmitterTypeAsString.rawValue)
             }
         }
@@ -3021,6 +3027,47 @@ extension UserDefaults {
     var activeSourceAllowsGlucoseExport: Bool {
         guard isMaster else { return true }
         return cgmTransmitterType?.allowsGlucoseExport ?? true
+    }
+
+    /// see Key.glucoseExportFloorTimeStamp
+    var glucoseExportFloorTimeStamp: Date? {
+        get {
+            return object(forKey: Key.glucoseExportFloorTimeStamp.rawValue) as? Date
+        }
+        set {
+            set(newValue, forKey: Key.glucoseExportFloorTimeStamp.rawValue)
+        }
+    }
+
+    /// Moves the export cursors of OS-AID sharing, Nightscout, HealthKit and Dexcom Share, and the export floor,
+    /// forward to `date` (never backwards). Readings stored while a source without glucose export was active must
+    /// never be exported later, also not after switching to a source that allows export.
+    func advanceGlucoseExportCursors(to date: Date) {
+        if (timeStampLatestLoopSharedBgReading ?? .distantPast) < date {
+            timeStampLatestLoopSharedBgReading = date
+        }
+        if (timeStampLatestNightscoutUploadedBgReading ?? .distantPast) < date {
+            timeStampLatestNightscoutUploadedBgReading = date
+        }
+        if (timeStampLatestHealthKitStoreBgReading ?? .distantPast) < date {
+            timeStampLatestHealthKitStoreBgReading = date
+        }
+        if (timeStampLatestDexcomShareUploadedBgReading ?? .distantPast) < date {
+            timeStampLatestDexcomShareUploadedBgReading = date
+        }
+        if (glucoseExportFloorTimeStamp ?? .distantPast) < date {
+            glucoseExportFloorTimeStamp = date
+        }
+    }
+
+    /// to be called before isMaster or the transmitter type changes: when the current active source does not allow
+    /// glucose export and the new one does (other type, no type, or follower mode), its backlog must stay unexported
+    private func advanceGlucoseExportCursorsIfLeavingBlockedSource(newIsMaster: Bool, newTransmitterTypeAsString: String?) {
+        guard !activeSourceAllowsGlucoseExport else { return }
+        let newType = newTransmitterTypeAsString.flatMap { CGMTransmitterType(rawValue: $0) }
+        let newSourceAllowsExport = !newIsMaster || (newType?.allowsGlucoseExport ?? true)
+        guard newSourceAllowsExport else { return }
+        advanceGlucoseExportCursors(to: Date())
     }
 
     /// false when the active direct source (master mode) must not raise glucose alarms (missed reading excepted).

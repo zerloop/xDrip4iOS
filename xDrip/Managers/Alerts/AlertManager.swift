@@ -863,18 +863,19 @@ public class AlertManager: NSObject {
     }
     
     /// alert kinds driven by glucose values; blocked when the source does not allow glucose alarms.
-    /// Explicit set so that any new (non-glucose) kind defaults to permitted.
-    static let glucoseValueAlertKinds: Set<AlertKind> = [.verylow, .low, .high, .veryhigh, .fastdrop, .fastrise, .notlooping]
+    /// Explicit set so that any new (non-glucose) kind defaults to permitted. notlooping is a Loop-health alert
+    /// (Nightscout device status), not driven by the source's glucose values, so it stays permitted.
+    static let glucoseValueAlertKinds: Set<AlertKind> = [.verylow, .low, .high, .veryhigh, .fastdrop, .fastrise]
     
     /// whether an alert of this kind may fire for the active source. Only glucose-value-driven alerts are blocked
-    /// when the source does not allow glucose alarms; missed reading, calibration, battery, sensor alerts stay permitted.
+    /// when the source does not allow glucose alarms; missed reading, not looping, calibration, battery, sensor alerts stay permitted.
     static func alertIsPermitted(_ kind: AlertKind, sourceAllowsAlarms: Bool) -> Bool {
         return sourceAllowsAlarms || !glucoseValueAlertKinds.contains(kind)
     }
     
     /// will check if the alert of type alertKind needs to be fired and also fires it, plays the sound, and if yes returns true, otherwise false
     private func checkAlertAndFire(alertKind: AlertKind, lastBgReading: BgReading?, lastButOneBgReading: BgReading?, lastCalibration: Calibration?, transmitterBatteryInfo: TransmitterBatteryInfo?, deviceStatus: NotLoopingDeviceStatus? = nil) -> Bool {
-        // experimental passive sources (Sibionics GS1) must not raise glucose alarms, only missed reading
+        // experimental passive sources (Sibionics GS1) must not raise glucose-value alarms (see glucoseValueAlertKinds)
         if !AlertManager.alertIsPermitted(alertKind, sourceAllowsAlarms: UserDefaults.standard.activeSourceAllowsGlucoseAlarms) {
             trace("in checkAlertAndFire, alert '%{public}@' is not permitted because the active CGM source does not allow glucose alarms", log: log, category: ConstantsLog.categoryAlertManager, type: .info, alertKind.descriptionForLogging())
             return false

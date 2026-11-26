@@ -313,6 +313,8 @@ public class NightscoutSyncManager: NSObject, ObservableObject {
         // experimental passive sources (Sibionics GS1) must never have their glucose uploaded
         if !UserDefaults.standard.activeSourceAllowsGlucoseExport {
             trace("in uploadLatestBgReadings, returning because the active CGM source does not allow glucose export", log: oslog, category: ConstantsLog.categoryNightscoutSyncManager, type: .info)
+            // its readings must not be uploaded later either, after a switch to an exporting source
+            UserDefaults.standard.advanceGlucoseExportCursors(to: Date())
             return
         }
         

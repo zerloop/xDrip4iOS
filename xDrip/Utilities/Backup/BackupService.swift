@@ -80,6 +80,7 @@ final class BackupService: @unchecked Sendable {
         UserDefaults.Key.timeStampOfLastBatteryReading.rawValue,
         UserDefaults.Key.readingsStoredInSharedUserDefaultsAsDictionary.rawValue,
         UserDefaults.Key.timeStampLatestLoopSharedBgReading.rawValue,
+        UserDefaults.Key.glucoseExportFloorTimeStamp.rawValue,
         UserDefaults.Key.nfcScanFailed.rawValue,
         UserDefaults.Key.nfcScanSuccessful.rawValue,
         UserDefaults.Key.stopActiveSensor.rawValue,

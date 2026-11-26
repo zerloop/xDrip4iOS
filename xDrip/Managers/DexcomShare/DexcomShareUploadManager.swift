@@ -162,6 +162,8 @@ struct DexcomShareUploadBatch {
         // experimental passive sources (Sibionics GS1) must never be uploaded to Dexcom Share
         guard defaults.activeSourceAllowsGlucoseExport else {
             trace("in uploadLatestBgReadings, returning because the active CGM source does not allow glucose export", log: log, category: ConstantsLog.categoryDexcomShareUploadManager, type: .info)
+            // its readings must not be uploaded later either, after a switch to an exporting source
+            defaults.advanceGlucoseExportCursors(to: Date())
             return
         }
         guard uploadTask == nil, canUpload else { return }

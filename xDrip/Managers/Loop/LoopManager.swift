@@ -437,6 +437,10 @@ public class LoopManager: NSObject {
         guard Self.osAidSharingPermitted else {
             glucoseData.removeAll()
             clearBlockedSourceSharedData()
+            // readings of a source without glucose export must never be shared later, after a switch of source
+            if !UserDefaults.standard.activeSourceAllowsGlucoseExport {
+                UserDefaults.standard.advanceGlucoseExportCursors(to: Date())
+            }
             return
         }
 
@@ -466,7 +470,7 @@ public class LoopManager: NSObject {
 
         // get last readings with calculated value
         // reduce timeStampLatestLoopSharedBgReading with 30 minutes. Because maybe Loop wasn't running for a while and so missed one or more readings. By adding 30 minutes of readings, we fill up a gap of maximum 30 minutes in Loop
-        let lastReadings = bgReadingsAccessor.getLatestBgReadings(limit: ConstantsShareWithLoop.maxReadingsToShareWithLoop, fromDate: timeStampLatestLoopSharedBgReading.addingTimeInterval(-TimeInterval(minutes: 30)), forSensor: nil, ignoreRawData: true, ignoreCalculatedValue: false)
+        let lastReadings = bgReadingsAccessor.getLatestBgReadings(limit: ConstantsShareWithLoop.maxReadingsToShareWithLoop, fromDate: Self.shareFromDate(latestShared: timeStampLatestLoopSharedBgReading, exportFloor: UserDefaults.standard.glucoseExportFloorTimeStamp), forSensor: nil, ignoreRawData: true, ignoreCalculatedValue: false)
 
         // calculate loopDelay, to avoid having to do it multiple times
         let loopDelay = LoopManager.loopDelay()
@@ -991,6 +995,12 @@ public class LoopManager: NSObject {
 
     static var osAidSharingPermitted: Bool {
         UserDefaults.standard.canPublishOSAidData
+    }
+
+    /// readings are shared from 30 minutes before the latest shared one (to fill a gap in the OS-AID app),
+    /// but never from before the export floor: readings of a source without glucose export stay unshared
+    static func shareFromDate(latestShared: Date, exportFloor: Date?) -> Date {
+        return max(latestShared.addingTimeInterval(-TimeInterval(minutes: 30)), exportFloor ?? .distantPast)
     }
 
 }
