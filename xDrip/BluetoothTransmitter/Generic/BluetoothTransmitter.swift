@@ -316,6 +316,12 @@ class BluetoothTransmitter: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         }
     }
 
+    /// name to use when the connected peripheral has no BLE name. Default nil (keep the peripheral's name).
+    /// Transmitters whose devices may not advertise a name override this, so that the device can be added
+    func fallbackDeviceName() -> String? {
+        return nil
+    }
+
     /// Subclasses can opt in when a restored/already-connected session must quickly make
     /// service-discovery progress or be abandoned. Generic transmitters keep legacy behavior.
     func shouldTimeoutStalledConnectionSetup() -> Bool {
@@ -815,7 +821,7 @@ class BluetoothTransmitter: NSObject, CBCentralManagerDelegate, CBPeripheralDele
                 deviceAddress = uuidString
                 didChange = true
             }
-            let newName = peripheral.name
+            let newName = peripheral.name ?? fallbackDeviceName()
             if deviceName != newName {
                 deviceName = newName
                 didChange = true

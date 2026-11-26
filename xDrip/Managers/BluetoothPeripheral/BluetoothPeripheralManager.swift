@@ -422,7 +422,7 @@ class BluetoothPeripheralManager: NSObject {
 
                         if let cgmTransmitterDelegate = cgmTransmitterDelegate {
 
-                            newTransmitter = CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+                            newTransmitter = CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate, activeSensorStartDate: sensorsAccessor.fetchActiveSensor()?.startDate)
 
                         } else {
 
@@ -1106,7 +1106,7 @@ class BluetoothPeripheralManager: NSObject {
 
                         if sibionicsGS1.blePeripheral.shouldconnect {
 
-                            bluetoothTransmitters.insert(CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate), at: index)
+                            bluetoothTransmitters.insert(CGMSibionicsGS1Transmitter(address: sibionicsGS1.blePeripheral.address, name: sibionicsGS1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate, activeSensorStartDate: sensorsAccessor.fetchActiveSensor()?.startDate), at: index)
 
                             if bluetoothPeripheralType.category() == .CGM {
                                 currentCgmTransmitterAddress = blePeripheral.address

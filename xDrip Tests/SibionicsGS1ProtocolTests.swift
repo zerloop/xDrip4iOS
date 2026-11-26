@@ -76,4 +76,51 @@ final class SibionicsGS1ProtocolTests: XCTestCase {
         XCTAssertEqual(SibionicsGS1Protocol.comparisonLine(r, calibratedMgDl: nil), "SIBCMP;1795000000000;100;7.2;36.5;-")
         XCTAssertEqual(SibionicsGS1Protocol.comparisonLine(r, calibratedMgDl: 131.4), "SIBCMP;1795000000000;100;7.2;36.5;131")
     }
+    // MARK: - final review items 4 and 9
+
+    /// builds an encrypted packet from a plain frame body (without length and checksum)
+    private func encryptedFrame(_ body: [UInt8]) -> Data {
+        var frame = [UInt8(body.count + 1)] + body
+        let sum = frame.reduce(UInt8(0), { $0 &+ $1 })
+        frame.append(UInt8(0) &- sum)
+        return SibionicsGS1Protocol.rc4(key: ConstantsSibionicsGS1.rc4Key, data: Data(frame))
+    }
+
+    private let knownBatch = "3cff6dbd08b3de21d7ec87030fff068c82dde54c22cf61b67e0afaf3"
+
+    func testCalibratedComparisonLineFormat() {
+        XCTAssertEqual(SibionicsGS1Protocol.calibratedComparisonLine(timeStamp: Date(timeIntervalSince1970: 1_795_000_000), calculatedMgDl: 131.4, rawMgDl: 129.6), "SIBCAL;1795000000000;131;130")
+    }
+
+    func testNoTrailingBytesForExactLayout() {
+        XCTAssertEqual(SibionicsGS1Protocol.trailingByteCount(hex(knownBatch)), 0)
+    }
+
+    func testTrailingBytesAreReportedAndRecordsStillDecoded() {
+        let plain = [UInt8](SibionicsGS1Protocol.rc4(key: ConstantsSibionicsGS1.rc4Key, data: hex(knownBatch)))
+        // body = everything between the length byte and the checksum, plus 3 unknown trailing bytes
+        let body = Array(plain[1..<(plain.count - 1)]) + [0x11, 0x22, 0x33]
+        let raw = encryptedFrame(body)
+        XCTAssertEqual(SibionicsGS1Protocol.trailingByteCount(raw), 3)
+        guard case let .records(_, recs, _) = SibionicsGS1Protocol.classify(raw, receivedAt: t0) else { return XCTFail() }
+        XCTAssertEqual(recs.map { $0.index }, [100, 101])
+    }
+
+    func testTrailingByteCountIsZeroForNonRecordPackets() {
+        XCTAssertEqual(SibionicsGS1Protocol.trailingByteCount(hex("23f66ed9f2")), 0)
+        XCTAssertEqual(SibionicsGS1Protocol.trailingByteCount(Data([0x01])), 0)
+    }
+
+    func testValidFrameWithUnlistedCommandIsNotInvalid() {
+        let raw = encryptedFrame([0x55, 0x01, 0x02, 0x03])
+        XCTAssertEqual(SibionicsGS1Protocol.classify(raw, receivedAt: t0), .unlistedCommand(cmd: 0x55, decrypted: SibionicsGS1Protocol.rc4(key: ConstantsSibionicsGS1.rc4Key, data: raw)))
+    }
+
+    func testClockMismatchAboveOneDay() {
+        func r(_ ts: Date) -> SibionicsGS1Record { SibionicsGS1Record(index: 1, timeStamp: ts, temperatureC: 36, rawMmol: 6, dump: 0, extra: 0) }
+        XCTAssertNil(SibionicsGS1Protocol.clockMismatchSeconds(r(t0.addingTimeInterval(-3600)), now: t0))
+        XCTAssertNil(SibionicsGS1Protocol.clockMismatchSeconds(r(t0.addingTimeInterval(86400)), now: t0))
+        XCTAssertEqual(SibionicsGS1Protocol.clockMismatchSeconds(r(t0.addingTimeInterval(86401)), now: t0), 86401)
+        XCTAssertEqual(SibionicsGS1Protocol.clockMismatchSeconds(r(t0.addingTimeInterval(-2 * 86400)), now: t0), -2 * 86400)
+    }
 }

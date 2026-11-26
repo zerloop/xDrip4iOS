@@ -11,6 +11,9 @@ struct SibionicsGS1SessionState: Equatable {
     var lastReadingDate: Date?
     /// raw (unclamped) time stamp of the newest record processed in any way (emitted or skipped)
     var lastRecordDate: Date? = nil
+    /// session start derived from the raw (unclamped) sensor time: raw time stamp - index * 60.
+    /// Constant for one sensor even if the sensor clock is ahead of the phone, used to detect a sensor change
+    var rawSensorStartDate: Date? = nil
 }
 
 struct SibionicsGS1SessionResult {
@@ -22,6 +25,9 @@ struct SibionicsGS1SessionResult {
 
 /// pure session logic: de-duplication, new sensor detection, time handling. No CoreBluetooth, no persistence
 enum SibionicsGS1Session {
+
+    /// a derived session start that differs more than this from the stored one is a new sensor
+    static let newSessionStartToleranceSeconds: TimeInterval = 30 * 60
 
     static func process(_ records: [SibionicsGS1Record], state: inout SibionicsGS1SessionState, now: Date) -> SibionicsGS1SessionResult {
 
@@ -40,7 +46,23 @@ enum SibionicsGS1Session {
                 record = SibionicsGS1Record(index: original.index, timeStamp: now, temperatureC: original.temperatureC, rawMmol: original.rawMmol, dump: original.dump, extra: original.extra)
             }
 
-            if original.index == state.lastReceivedIndex {
+            // raw session start of this record, independent of the index direction
+            let derivedRawStart = original.timeStamp.addingTimeInterval(-Double(original.index) * 60)
+
+            let timeMovedOn = state.lastRecordDate == nil || original.timeStamp > state.lastRecordDate!
+
+            if state.lastReceivedIndex != -1, timeMovedOn,
+               let storedStart = state.rawSensorStartDate ?? state.sensorStartDate,
+               abs(derivedRawStart.timeIntervalSince(storedStart)) > newSessionStartToleranceSeconds {
+
+                // derived start differs: new sensor, also when its index is already higher (long offline gap)
+                state.lastReceivedIndex = -1
+                state.sensorStartDate = nil
+                state.lastReadingDate = nil
+                state.rawSensorStartDate = nil
+                isFirstSession = true
+
+            } else if original.index == state.lastReceivedIndex {
 
                 skipped.append((record: record, reason: "duplicate"))
                 continue
@@ -48,10 +70,11 @@ enum SibionicsGS1Session {
             } else if original.index < state.lastReceivedIndex {
 
                 // index went back while (raw) time moved on: new sensor
-                if state.lastRecordDate == nil || original.timeStamp > state.lastRecordDate! {
+                if timeMovedOn {
                     state.lastReceivedIndex = -1
                     state.sensorStartDate = nil
                     state.lastReadingDate = nil
+                    state.rawSensorStartDate = nil
                     isFirstSession = true
                 } else {
                     skipped.append((record: record, reason: "duplicate"))
@@ -70,6 +93,11 @@ enum SibionicsGS1Session {
                 let start = record.timeStamp.addingTimeInterval(-Double(record.index) * 60)
                 state.sensorStartDate = start
                 newSensorStartDate = start
+            }
+
+            // also migrates a state persisted before rawSensorStartDate existed
+            if state.rawSensorStartDate == nil {
+                state.rawSensorStartDate = derivedRawStart
             }
 
             state.lastReceivedIndex = record.index

@@ -138,4 +138,56 @@ final class SibionicsGS1SessionTests: XCTestCase {
         let result = SibionicsGS1Session.process([r2, r1], state: &state, now: now)
         XCTAssertEqual(result.newRecords.map { $0.index }, [1, 2])
     }
+    // MARK: - new sensor detected by derived start (final review item 2b)
+
+    func testHigherIndexWithDifferentDerivedStartStartsNewSession() {
+        // old sensor: index 100, started 10 days ago, last seen 2 days ago. After a long offline gap a
+        // new sensor already has index 500 (> 100), its derived start differs by days
+        let lastSeen = now.addingTimeInterval(-2 * 86400)
+        let oldStart = now.addingTimeInterval(-10 * 86400)
+        var state = SibionicsGS1SessionState(lastReceivedIndex: 100, sensorStartDate: oldStart, lastReadingDate: lastSeen, lastRecordDate: lastSeen)
+        let ts = now.addingTimeInterval(-60)
+        let result = SibionicsGS1Session.process([record(500, ts)], state: &state, now: now)
+        XCTAssertEqual(result.newSensorStartDate, ts.addingTimeInterval(-500 * 60))
+        XCTAssertEqual(state.sensorStartDate, ts.addingTimeInterval(-500 * 60))
+        XCTAssertEqual(state.rawSensorStartDate, ts.addingTimeInterval(-500 * 60))
+        XCTAssertEqual(result.newRecords.map { $0.index }, [500])
+        XCTAssertEqual(state.lastReceivedIndex, 500)
+    }
+
+    func testLongGapOnSameSensorKeepsSession() {
+        let start = now.addingTimeInterval(-5 * 86400)
+        let lastSeen = start.addingTimeInterval(100 * 60)
+        var state = SibionicsGS1SessionState(lastReceivedIndex: 100, sensorStartDate: start, lastReadingDate: lastSeen, lastRecordDate: lastSeen, rawSensorStartDate: start)
+        // same sensor, index 5000 matches the start within seconds
+        let ts = start.addingTimeInterval(5000 * 60 + 20)
+        let result = SibionicsGS1Session.process([record(5000, ts)], state: &state, now: now)
+        XCTAssertNil(result.newSensorStartDate)
+        XCTAssertEqual(state.sensorStartDate, start)
+        XCTAssertEqual(result.newRecords.map { $0.index }, [5000])
+    }
+
+    func testSensorClockAheadDoesNotStartNewSessionOnEveryPacket() {
+        // sensor clock 3 hours ahead of the phone: every live record is clamped to now
+        var state = freshState()
+        let ahead: TimeInterval = 3 * 3600
+        let first = SibionicsGS1Session.process([record(100, now.addingTimeInterval(ahead))], state: &state, now: now)
+        XCTAssertNotNil(first.newSensorStartDate)
+        for minute in 1...5 {
+            let t = now.addingTimeInterval(Double(minute) * 60)
+            let result = SibionicsGS1Session.process([record(100 + minute, t.addingTimeInterval(ahead))], state: &state, now: t)
+            XCTAssertNil(result.newSensorStartDate, "minute \(minute)")
+            XCTAssertEqual(result.newRecords.count, 1)
+        }
+    }
+
+    func testStateWithoutRawStartIsMigratedWithoutNewSession() {
+        // state persisted before rawSensorStartDate existed
+        let start = now.addingTimeInterval(-6000)
+        var state = SibionicsGS1SessionState(lastReceivedIndex: 99, sensorStartDate: start, lastReadingDate: now.addingTimeInterval(-120), lastRecordDate: now.addingTimeInterval(-120))
+        let result = SibionicsGS1Session.process([record(100, now.addingTimeInterval(-60))], state: &state, now: now)
+        XCTAssertNil(result.newSensorStartDate)
+        XCTAssertEqual(result.newRecords.count, 1)
+        XCTAssertNotNil(state.rawSensorStartDate)
+    }
 }

@@ -1284,6 +1284,10 @@ import AppIntents
                         }
                         
                         let newReading = calibrator.createNewBgReading(rawData: glucose.glucoseLevelRaw, timeStamp: glucose.timeStamp, sensor: activeSensor, last3Readings: &last3ReadingsForNewReading, lastCalibrationsForActiveSensorInLastXDays: &lastCalibrationsForActiveSensorInLastXDays, firstCalibration: firstCalibrationForActiveSensor, lastCalibration: lastCalibrationForActiveSensor, deviceName: self.getCGMTransmitterDeviceName(for: cgmTransmitter), nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+                        if cgmTransmitter.cgmTransmitterType() == .sibionicsGS1 {
+                            // evidence for the experimental source: pairs the raw value with xDrip's calibrated value in the trace file
+                            trace("%{public}@", log: self.log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, SibionicsGS1Protocol.calibratedComparisonLine(timeStamp: newReading.timeStamp, calculatedMgDl: newReading.calculatedValue, rawMgDl: glucose.glucoseLevelRaw / 1000))
+                        }
                         newReading.valueIsFromWatch = glucose.valueIsFromWatch
                         newReading.watchReceivedAt = glucose.watchReceivedAt
                         newReading.watchCollectedAt = glucose.watchCollectedAt

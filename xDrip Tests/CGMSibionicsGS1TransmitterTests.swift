@@ -8,8 +8,11 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
         "sibionicsGS1.lastReceivedIndex",
         "sibionicsGS1.sensorStartDate",
         "sibionicsGS1.lastReadingDate",
-        "sibionicsGS1.lastRecordDate"
+        "sibionicsGS1.lastRecordDate",
+        "sibionicsGS1.rawSensorStartDate"
     ]
+
+    private var savedActiveSensorStartDate: Any?
 
     /// encrypted V120 batch from SibionicsGS1ProtocolTests: index 100 (7.2 mmol/L, t=1_795_000_000) and 101 (7.5 mmol/L, t=1_795_000_060)
     private let encryptedGlucoseBatch = "3cff6dbd08b3de21d7ec87030fff068c82dde54c22cf61b67e0afaf3"
@@ -20,6 +23,8 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        savedActiveSensorStartDate = UserDefaults.standard.object(forKey: UserDefaults.Key.activeSensorStartDate.rawValue)
+        UserDefaults.standard.removeObject(forKey: UserDefaults.Key.activeSensorStartDate.rawValue)
         clearDefaults()
         bluetoothDelegate = FakeBluetoothTransmitterDelegate()
         cgmDelegate = FakeCGMTransmitterDelegate()
@@ -32,6 +37,11 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
         cgmDelegate = nil
         bluetoothDelegate = nil
         clearDefaults()
+        if let savedActiveSensorStartDate {
+            UserDefaults.standard.set(savedActiveSensorStartDate, forKey: UserDefaults.Key.activeSensorStartDate.rawValue)
+        } else {
+            UserDefaults.standard.removeObject(forKey: UserDefaults.Key.activeSensorStartDate.rawValue)
+        }
         super.tearDown()
     }
 
@@ -263,6 +273,107 @@ final class CGMSibionicsGS1TransmitterTests: XCTestCase {
 
         XCTAssertEqual(transmitter.diagnostics.unknownPacketCount, 1)
         XCTAssertTrue(cgmDelegate.received.isEmpty)
+    }
+
+    // MARK: - final review items 2a, 5, 6
+
+    /// session start of encryptedGlucoseBatch: t(100) - 100 minutes
+    private let batchSessionStart = Date(timeIntervalSince1970: 1_795_000_000 - 6000)
+
+    /// persists a session that already contains index 99 of the batch sensor, so the batch is not a first session
+    private func persistExistingSession() {
+        let defaults = UserDefaults.standard
+        defaults.set(99, forKey: "sibionicsGS1.lastReceivedIndex")
+        defaults.set(batchSessionStart, forKey: "sibionicsGS1.sensorStartDate")
+        defaults.set(batchSessionStart, forKey: "sibionicsGS1.rawSensorStartDate")
+        defaults.set(Date(timeIntervalSince1970: 1_794_999_940), forKey: "sibionicsGS1.lastReadingDate")
+        defaults.set(Date(timeIntervalSince1970: 1_794_999_940), forKey: "sibionicsGS1.lastRecordDate")
+    }
+
+    func testActiveSensorKnownAtInitIsComparedWhenDefaultsAreNotYetSet() {
+        // at launch UserDefaults.activeSensorStartDate is nil until the coordinator updates it
+        transmitter.prepareForRelease()
+        transmitter = CGMSibionicsGS1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothDelegate, cGMTransmitterDelegate: cgmDelegate, activeSensorStartDate: Date(timeIntervalSince1970: 1_700_000_000))
+        let delivered = expectation(description: "glucose delivered")
+        cgmDelegate.onInfoReceived = { delivered.fulfill() }
+
+        transmitter.handleNotification(hex(encryptedGlucoseBatch), now: Date(timeIntervalSince1970: 1_795_000_120))
+
+        wait(for: [delivered], timeout: 2)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates, [batchSessionStart])
+    }
+
+    func testDifferentActiveSensorIsReportedOnPacketWithoutNewSession() {
+        persistExistingSession()
+        UserDefaults.standard.activeSensorStartDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let delivered = expectation(description: "glucose delivered")
+        cgmDelegate.onInfoReceived = { delivered.fulfill() }
+
+        transmitter.handleNotification(hex(encryptedGlucoseBatch), now: Date(timeIntervalSince1970: 1_795_000_120))
+
+        wait(for: [delivered], timeout: 2)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates, [batchSessionStart])
+    }
+
+    func testMatchingActiveSensorIsNotReported() {
+        persistExistingSession()
+        UserDefaults.standard.activeSensorStartDate = batchSessionStart.addingTimeInterval(5 * 60)
+        let delivered = expectation(description: "glucose delivered")
+        cgmDelegate.onInfoReceived = { delivered.fulfill() }
+
+        transmitter.handleNotification(hex(encryptedGlucoseBatch), now: Date(timeIntervalSince1970: 1_795_000_120))
+
+        wait(for: [delivered], timeout: 2)
+        XCTAssertTrue(cgmDelegate.newSensorStartDates.isEmpty)
+    }
+
+    func testSensorChangeIsReportedOnlyOnceWhileDefaultsLag() {
+        persistExistingSession()
+        transmitter.prepareForRelease()
+        transmitter = CGMSibionicsGS1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothDelegate, cGMTransmitterDelegate: cgmDelegate, activeSensorStartDate: Date(timeIntervalSince1970: 1_700_000_000))
+        let delivered = expectation(description: "glucose delivered twice")
+        delivered.expectedFulfillmentCount = 2
+        cgmDelegate.onInfoReceived = { delivered.fulfill() }
+
+        transmitter.handleNotification(hex(encryptedGlucoseBatch), now: Date(timeIntervalSince1970: 1_795_000_120))
+        spinMainRunLoop(0.2)
+        // second packet of the same session, xDrip's defaults still not updated
+        UserDefaults.standard.set(98, forKey: "sibionicsGS1.lastReceivedIndex")
+        transmitter.handleNotification(hex(encryptedGlucoseBatch), now: Date(timeIntervalSince1970: 1_795_000_180))
+
+        wait(for: [delivered], timeout: 2)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates, [batchSessionStart])
+    }
+
+    func testFallbackNameWhenPeripheralHasNoName() {
+        XCTAssertEqual(transmitter.fallbackDeviceName(), "Sibionics GS1")
+    }
+
+    func testPendingConnectLinkWithoutGlucoseSuppressesPendingConnectsForTenMinutes() {
+        var policy = SibionicsGS1ReconnectPolicy()
+        let t = Date(timeIntervalSince1970: 1_795_000_000)
+        policy.pendingConnectLinkEnded(receivedGlucose: false, now: t)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true, now: t.addingTimeInterval(60)), .retryWithBackoff)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true, now: t.addingTimeInterval(599)), .retryWithBackoff)
+        XCTAssertFalse(policy.pendingConnectOutstanding)
+        // the retrieveConnected back-off itself is unchanged
+        XCTAssertEqual(policy.requestAttempt(now: t.addingTimeInterval(60)), 5)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true, now: t.addingTimeInterval(601)), .pendingConnect)
+    }
+
+    func testPendingConnectLinkWithGlucoseDoesNotSuppress() {
+        var policy = SibionicsGS1ReconnectPolicy()
+        let t = Date(timeIntervalSince1970: 1_795_000_000)
+        policy.pendingConnectLinkEnded(receivedGlucose: true, now: t)
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true, now: t.addingTimeInterval(60)), .pendingConnect)
+    }
+
+    func testValidGlucoseClearsPendingConnectSuppression() {
+        var policy = SibionicsGS1ReconnectPolicy()
+        let t = Date(timeIntervalSince1970: 1_795_000_000)
+        policy.pendingConnectLinkEnded(receivedGlucose: false, now: t)
+        policy.reset()
+        XCTAssertEqual(policy.afterFailedAttempt(hasKnownPeripheral: true, now: t.addingTimeInterval(60)), .pendingConnect)
     }
 
 }

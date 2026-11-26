@@ -34,6 +34,8 @@ enum SibionicsGS1Packet: Equatable {
     case records(firmware: SibionicsGS1Firmware, records: [SibionicsGS1Record], reindex: Int?)
     case ack(cmd: UInt8, status: UInt8, aux: UInt8)
     case unknownData(cmd: UInt8, decrypted: Data)
+    /// valid frame (length and checksum) with a command that is in no known list
+    case unlistedCommand(cmd: UInt8, decrypted: Data)
     case invalid(raw: Data, decrypted: Data)
 }
 
@@ -91,18 +93,8 @@ enum SibionicsGS1Protocol {
         }
 
         // choose plain or decrypted
-        let frame: [UInt8]
-        if rawBytes == plainBypassPacket {
-            frame = rawBytes
-        } else {
-            let decrypted = [UInt8](rc4(key: ConstantsSibionicsGS1.rc4Key, data: raw))
-            if frameIsValid(decrypted) {
-                frame = decrypted
-            } else if frameIsValid(rawBytes) {
-                frame = rawBytes
-            } else {
-                return .invalid(raw: raw, decrypted: Data(decrypted))
-            }
+        guard let frame = validFrame(rawBytes) else {
+            return .invalid(raw: raw, decrypted: rc4(key: ConstantsSibionicsGS1.rc4Key, data: raw))
         }
 
         let cmd = frame[1]
@@ -120,8 +112,31 @@ enum SibionicsGS1Protocol {
             return .unknownData(cmd: cmd, decrypted: Data(frame))
         }
 
-        return .invalid(raw: raw, decrypted: Data(frame))
+        return .unlistedCommand(cmd: cmd, decrypted: Data(frame))
 
+    }
+
+    /// number of bytes after the v1.2.0 record layout (records and reindex) and before the checksum.
+    /// The decoder accepts them (unknown firmware layouts must not lose evidence), the caller logs them.
+    /// 0 for every packet that is not a valid v1.2.0 glucose frame
+    static func trailingByteCount(_ raw: Data) -> Int {
+        let rawBytes = [UInt8](raw)
+        guard rawBytes.count >= 5, let frame = validFrame(rawBytes), frame[0] != 4, frame[1] == 0x08 else { return 0 }
+        let count = Int(frame[2])
+        guard count > 0 else { return 0 }
+        return max(0, (frame.count - 4) - (6 + 8 * count + 2))
+    }
+
+    /// difference sensor time minus phone time if it exceeds one day (sensor clock or epoch mismatch), else nil
+    static func clockMismatchSeconds(_ record: SibionicsGS1Record, now: Date) -> TimeInterval? {
+        let offset = record.timeStamp.timeIntervalSince(now)
+        return abs(offset) > 86400 ? offset : nil
+    }
+
+    /// line that pairs the raw value with the value calculated by xDrip's calibrator, parsable from the log
+    static func calibratedComparisonLine(timeStamp: Date, calculatedMgDl: Double, rawMgDl: Double) -> String {
+        let ms = Int((timeStamp.timeIntervalSince1970 * 1000).rounded())
+        return "SIBCAL;\(ms);\(Int(calculatedMgDl.rounded()));\(Int(rawMgDl.rounded()))"
     }
 
     /// line used to compare raw values with calibrated values, parsable from the log
@@ -135,6 +150,21 @@ enum SibionicsGS1Protocol {
     }
 
     // MARK: - private helpers
+
+    /// the plain bypass packet, the decrypted frame or the plain frame, whichever is valid
+    private static func validFrame(_ rawBytes: [UInt8]) -> [UInt8]? {
+        if rawBytes == plainBypassPacket {
+            return rawBytes
+        }
+        let decrypted = [UInt8](rc4(key: ConstantsSibionicsGS1.rc4Key, data: Data(rawBytes)))
+        if frameIsValid(decrypted) {
+            return decrypted
+        }
+        if frameIsValid(rawBytes) {
+            return rawBytes
+        }
+        return nil
+    }
 
     /// sum of all bytes (including checksum byte) must be 0 modulo 256
     private static func checksumIsValid(_ bytes: [UInt8]) -> Bool {

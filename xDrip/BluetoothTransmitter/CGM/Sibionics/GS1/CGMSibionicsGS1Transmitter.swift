@@ -46,6 +46,7 @@ struct SibionicsGS1ReconnectPolicy {
         attempt = 0
         nextAllowedAttempt = .distantPast
         pendingConnectOutstanding = false
+        pendingConnectSuppressedUntil = .distantPast
     }
 
     /// what to do after a retrieveConnected attempt found nothing
@@ -61,9 +62,17 @@ struct SibionicsGS1ReconnectPolicy {
 
     private(set) var pendingConnectOutstanding = false
 
-    mutating func afterFailedAttempt(hasKnownPeripheral: Bool) -> Recovery {
+    /// how long pending connects stay suppressed after a link that xDrip's pending connect created ended without glucose
+    static let pendingConnectSuppression: TimeInterval = 10 * 60
+
+    /// no pending connect before this moment (the retrieveConnected back-off continues)
+    private(set) var pendingConnectSuppressedUntil = Date.distantPast
+
+    mutating func afterFailedAttempt(hasKnownPeripheral: Bool, now: Date = Date()) -> Recovery {
         guard hasKnownPeripheral else { return .retryWithBackoff }
         if pendingConnectOutstanding { return .waitForPendingConnect }
+        // without the official app, xDrip's own pending connect would hold a link that delivers nothing
+        if now < pendingConnectSuppressedUntil { return .retryWithBackoff }
         pendingConnectOutstanding = true
         return .pendingConnect
     }
@@ -78,6 +87,13 @@ struct SibionicsGS1ReconnectPolicy {
     /// to be called when the pending connect completes, fails, or could not be issued
     mutating func pendingConnectEnded() {
         pendingConnectOutstanding = false
+    }
+
+    /// to be called when a link that was created by xDrip's pending connect ends.
+    /// Without any valid glucose packet on it the official app was most likely absent: suppress pending connects
+    mutating func pendingConnectLinkEnded(receivedGlucose: Bool, now: Date) {
+        guard !receivedGlucose else { return }
+        pendingConnectSuppressedUntil = now.addingTimeInterval(Self.pendingConnectSuppression)
     }
 
 }
@@ -144,7 +160,11 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         static let sensorStartDate = "sibionicsGS1.sensorStartDate"
         static let lastReadingDate = "sibionicsGS1.lastReadingDate"
         static let lastRecordDate = "sibionicsGS1.lastRecordDate"
+        static let rawSensorStartDate = "sibionicsGS1.rawSensorStartDate"
     }
+
+    /// used as BLE name when the peripheral does not advertise one, so that it can be added
+    static let fallbackName = "Sibionics GS1"
 
     // MARK: - status messages (user visible, localised in Texts_BluetoothPeripheralView)
 
@@ -223,6 +243,26 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     private var resubscribedSinceReference = false
 
+    /// start date of xDrip's active sensor when the transmitter was created. UserDefaults.activeSensorStartDate
+    /// is nil at launch until the coordinator updates it; after a reported sensor change it holds the new start.
+    /// Only accessed on the main thread
+    private var activeSensorStartDateFallback: Date?
+
+    /// origin of the next / current link, for the LINK-OWNER trace and the pending connect suppression
+    private enum LinkOrigin {
+        case unknown
+        /// retrieveConnected found the peripheral already connected to the system (the official app holds it)
+        case official
+        /// xDrip's own pending connect
+        case xdrip
+    }
+
+    private var nextLinkOrigin = LinkOrigin.unknown
+
+    private var currentLinkOrigin = LinkOrigin.unknown
+
+    private var glucoseOnCurrentLink = false
+
     // MARK: - test / diagnostics accessors
 
     var diagnostics: SibionicsGS1Diagnostics {
@@ -262,7 +302,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     // MARK: - Initialization
 
-    init(address: String?, name: String?, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate, cGMTransmitterDelegate: CGMTransmitterDelegate) {
+    init(address: String?, name: String?, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate, cGMTransmitterDelegate: CGMTransmitterDelegate, activeSensorStartDate: Date? = nil) {
 
         var newAddressAndName: BluetoothTransmitter.DeviceAddressAndName = .notYetConnected(expectedName: nil)
         if let address = address {
@@ -270,6 +310,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         }
 
         self.cgmTransmitterDelegate = cGMTransmitterDelegate
+
+        self.activeSensorStartDateFallback = activeSensorStartDate
 
         // receive and write UUID are both FF31: the write characteristic is never used, every write path is blocked below
         super.init(
@@ -309,6 +351,11 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     }
 
     // MARK: - connection (passive: retrieveConnected only, never a real scan)
+
+    /// a GS1 without BLE name would otherwise never be added (the manager requires a name)
+    override func fallbackDeviceName() -> String? {
+        Self.fallbackName
+    }
 
     /// does not scan. Tries to retrieve the peripheral that the official app holds, with back-off
     override func startScanning() -> BluetoothTransmitter.startScanningResult {
@@ -404,16 +451,21 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     }
 
     override func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        withStateLock {
+        let origin: LinkOrigin = withStateLock {
             lastCentral = central
+            currentLinkOrigin = nextLinkOrigin
+            nextLinkOrigin = .unknown
+            glucoseOnCurrentLink = false
             // clear before super, so the base arms the setup timeout for this connection
             reconnectPolicy.pendingConnectEnded()
             restoredPeripheral = peripheral
             readCharacteristicUUIDs.removeAll()
             notifyCharacteristic = nil
             diagnosticsStorage.statusMessage = Self.connectedWaitingMessage
+            return currentLinkOrigin
         }
         trace("connected to peripheral name = %{public}@, id = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, peripheral.name ?? "<unnamed>", peripheral.identifier.uuidString)
+        trace("LINK-OWNER %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, Self.describe(origin))
 
         super.centralManager(central, didConnect: peripheral)
 
@@ -421,14 +473,24 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
     }
 
     override func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        withStateLock {
+        let suppressed: Bool = withStateLock {
             watchdogGeneration += 1
             notifyCharacteristic = nil
             restoredPeripheral = peripheral
             lastCentral = central
             reconnectPolicy.pendingConnectEnded()
+            let suppress = currentLinkOrigin == .xdrip && !glucoseOnCurrentLink
+            if currentLinkOrigin == .xdrip {
+                reconnectPolicy.pendingConnectLinkEnded(receivedGlucose: glucoseOnCurrentLink, now: Date())
+            }
+            currentLinkOrigin = .unknown
+            glucoseOnCurrentLink = false
+            return suppress
         }
         trace("disconnected, error = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, error?.localizedDescription ?? "none")
+        if suppressed {
+            trace("link created by xDrip's pending connect ended without glucose (official app absent?), no pending connect for %{public}@ s, retrieveConnected back-off continues", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, Int(SibionicsGS1ReconnectPolicy.pendingConnectSuppression).description)
+        }
 
         // base calls reconnectAfterDisconnect or startScanning, both are overridden and go through the back-off
         super.centralManager(central, didDisconnectPeripheral: peripheral, error: error)
@@ -460,8 +522,18 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
         var found = false
         if centralState == .poweredOn {
+            logConnectedFF30Peripherals()
+            // set before the connect is issued: didConnect can arrive before retrieveConnectedPeripheral returns
+            let previousOrigin: LinkOrigin = withStateLock {
+                let previous = nextLinkOrigin
+                nextLinkOrigin = .official
+                return previous
+            }
             // after the first connection only the stored peripheral is accepted
             found = retrieveConnectedPeripheral(withServiceUUIDs: [serviceCBUUID], allowFallback: deviceAddress == nil)
+            if !found {
+                withStateLock { if nextLinkOrigin == .official { nextLinkOrigin = previousOrigin } }
+            }
         }
 
         trace("retrieveConnected attempt %{public}@, trigger = %{public}@, central state = %{public}@, found = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, retrieveConnectedAttemptCount.description, trigger, centralState?.toString() ?? "not yet known", found.description)
@@ -476,7 +548,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         let hasKnownPeripheral = centralState == .poweredOn && systemKnowsStoredPeripheral()
         reconcileStalePendingConnect()
         let recovery: SibionicsGS1ReconnectPolicy.Recovery = withStateLock {
-            reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: hasKnownPeripheral)
+            reconnectPolicy.afterFailedAttempt(hasKnownPeripheral: hasKnownPeripheral, now: now)
         }
 
         switch recovery {
@@ -493,6 +565,17 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             scheduleRetryIfNeeded()
         }
         return result(for: centralState)
+    }
+
+    /// triage: every system-connected FF30 peripheral (more than one sensor nearby, or none), logging only
+    private func logConnectedFF30Peripherals() {
+        guard let central = withStateLock({ lastCentral }), central.state == .poweredOn else {
+            trace("FF30 connected peripherals: central not known", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info)
+            return
+        }
+        let peripherals = central.retrieveConnectedPeripherals(withServices: [serviceCBUUID])
+        let list = peripherals.map { "\($0.name ?? "<unnamed>")/\($0.identifier.uuidString)" }.joined(separator: ", ")
+        trace("FF30 connected peripherals: count = %{public}@, [%{public}@], stored = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, peripherals.count.description, list, deviceAddress ?? "-")
     }
 
     /// true if a peripheral was stored and the system still knows its identifier
@@ -514,6 +597,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             return false
         default:
             trace("PENDING CONNECT for stored peripheral %{public}@, no timeout", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, deviceAddress ?? "-")
+            withStateLock { nextLinkOrigin = .xdrip }
             // base connect: retrievePeripherals(withIdentifiers:) then central.connect, keeps the base peripheral reference.
             // It runs asynchronously on the Core Bluetooth queue, so verify afterwards that a connect was really issued
             super.connect()
@@ -753,6 +837,10 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         switch packet {
 
         case .records(let firmware, let records, let reindex):
+            let trailing = SibionicsGS1Protocol.trailingByteCount(data)
+            if trailing > 0 {
+                trace("LAYOUT-MISMATCH %{public}@ trailing byte(s) after the record layout, records decoded anyway", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .error, trailing.description)
+            }
             handleRecords(firmware: firmware, records: records, reindex: reindex, now: now)
 
         case .ack(let cmd, let status, let aux):
@@ -761,6 +849,10 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         case .unknownData(let cmd, let decrypted):
             updateDiagnostics { $0.unknownPacketCount += 1 }
             trace("UNKNOWN-DATA cmd = %{public}@, decrypted = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, String(format: "0x%02X", cmd), decrypted.hexEncodedString())
+
+        case .unlistedCommand(let cmd, let decrypted):
+            updateDiagnostics { $0.unknownPacketCount += 1 }
+            trace("UNLISTED-CMD cmd = %{public}@, decrypted = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, String(format: "0x%02X", cmd), decrypted.hexEncodedString())
 
         case .invalid(let raw, let decrypted):
             trace("INVALID raw = %{public}@, decrypted = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .error, raw.hexEncodedString(), decrypted.hexEncodedString())
@@ -776,6 +868,10 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             trace("record index = %{public}@, itime = %{public}@, temp = %{public}@, raw mmol/L = %{public}@, dump = %{public}@, extra = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, record.index.description, Int(record.timeStamp.timeIntervalSince1970).description, record.temperatureC.description, record.rawMmol.description, record.dump.description, record.extra.description)
             // fixed format comparison line, for every record including the ones that are skipped
             trace("%{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, SibionicsGS1Protocol.comparisonLine(record, calibratedMgDl: nil))
+        }
+
+        if let newest = records.max(by: { $0.index < $1.index }), let offset = SibionicsGS1Protocol.clockMismatchSeconds(newest, now: now) {
+            trace("CLOCK-MISMATCH sensor time - phone time = %{public}@ s, index = %{public}@", log: log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .error, Int(offset).description, newest.index.description)
         }
 
         var state = loadSessionState()
@@ -800,10 +896,12 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             watchdogReferenceDate = Date()
             resubscribedSinceReference = false
             reconnectPolicy.reset()
+            if !records.isEmpty { glucoseOnCurrentLink = true }
             return diagnosticsStorage.batteryPercent
         }
 
         let newSensorStartDate = result.newSensorStartDate
+        let sessionStartDate = state.sensorStartDate
 
         // newest first, as expected by CGMTransmitterDelegate
         var glucoseData = result.newRecords
@@ -823,19 +921,28 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
 
-            // a new session only replaces an existing xDrip sensor if its start really differs.
+            // compared on every delivery (Medtrum pattern), evaluated on main so queued packets can not all report it.
+            // A session only replaces an existing xDrip sensor if its start really differs.
             // Without an active sensor, the sensorAge passed below starts one.
-            if let newSensorStartDate,
-               let activeSensorStartDate = UserDefaults.standard.activeSensorStartDate,
-               abs(activeSensorStartDate.timeIntervalSince(newSensorStartDate)) > self.sensorSessionTolerance {
-                trace("new sensor session detected, start = %{public}@", log: self.log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, newSensorStartDate.description(with: .current))
-                self.cgmTransmitterDelegate?.newSensorDetected(sensorStartDate: newSensorStartDate)
+            let activeSensorStartDate = UserDefaults.standard.activeSensorStartDate ?? self.activeSensorStartDateFallback
+            if Self.sessionDiffersFromActiveSensor(sessionStartDate: sessionStartDate, activeSensorStartDate: activeSensorStartDate, tolerance: self.sensorSessionTolerance),
+               let sessionStartDate {
+                trace("new sensor session detected, start = %{public}@, active xDrip sensor start = %{public}@", log: self.log, category: ConstantsLog.categoryCGMSibionicsGS1, type: .info, sessionStartDate.description(with: .current), activeSensorStartDate?.description(with: .current) ?? "-")
+                // until the coordinator updates UserDefaults, the reported start is the active one
+                self.activeSensorStartDateFallback = sessionStartDate
+                self.cgmTransmitterDelegate?.newSensorDetected(sensorStartDate: sessionStartDate)
             }
 
             if !glucoseData.isEmpty {
                 self.cgmTransmitterDelegate?.cgmTransmitterInfoReceived(glucoseData: &glucoseData, transmitterBatteryInfo: batteryInfo, sensorAge: sensorAge)
             }
         }
+    }
+
+    /// true if there is an active xDrip sensor and the GS1 session start differs from it by more than the tolerance
+    static func sessionDiffersFromActiveSensor(sessionStartDate: Date?, activeSensorStartDate: Date?, tolerance: TimeInterval) -> Bool {
+        guard let sessionStartDate, let activeSensorStartDate else { return false }
+        return abs(activeSensorStartDate.timeIntervalSince(sessionStartDate)) > tolerance
     }
 
     // MARK: - session state persistence
@@ -846,7 +953,8 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
             lastReceivedIndex: defaults.object(forKey: DefaultsKey.lastReceivedIndex) as? Int ?? -1,
             sensorStartDate: defaults.object(forKey: DefaultsKey.sensorStartDate) as? Date,
             lastReadingDate: defaults.object(forKey: DefaultsKey.lastReadingDate) as? Date,
-            lastRecordDate: defaults.object(forKey: DefaultsKey.lastRecordDate) as? Date
+            lastRecordDate: defaults.object(forKey: DefaultsKey.lastRecordDate) as? Date,
+            rawSensorStartDate: defaults.object(forKey: DefaultsKey.rawSensorStartDate) as? Date
         )
     }
 
@@ -856,6 +964,7 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
         Self.set(state.sensorStartDate, forKey: DefaultsKey.sensorStartDate, in: defaults)
         Self.set(state.lastReadingDate, forKey: DefaultsKey.lastReadingDate, in: defaults)
         Self.set(state.lastRecordDate, forKey: DefaultsKey.lastRecordDate, in: defaults)
+        Self.set(state.rawSensorStartDate, forKey: DefaultsKey.rawSensorStartDate, in: defaults)
     }
 
     private static func set(_ date: Date?, forKey key: String, in defaults: UserDefaults) {
@@ -901,6 +1010,14 @@ class CGMSibionicsGS1Transmitter: BluetoothTransmitter, CGMTransmitter {
 
     private func updateDiagnostics(_ block: (inout SibionicsGS1Diagnostics) -> Void) {
         withStateLock { block(&diagnosticsStorage) }
+    }
+
+    private static func describe(_ origin: LinkOrigin) -> String {
+        switch origin {
+        case .official: return "official (peripheral was already system-connected)"
+        case .xdrip: return "xdrip (own pending connect)"
+        case .unknown: return "unknown (restored or external connect)"
+        }
     }
 
     private static func describe(_ properties: CBCharacteristicProperties) -> String {
