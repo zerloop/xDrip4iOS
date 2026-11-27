@@ -80,10 +80,17 @@ Dikkat:
 Test sırasında yaptığınız şeyleri kısaca not edin. Örneğin: telefonu yeniden başlattım, resmi uygulamayı kapattım, sensörü değiştirdim, Bluetooth'u kapatıp açtım. Saat bilgisi de ekleyin.
 Yeni sensör taktığınızda saatini not edin.
 
+**Sensör değiştirdiğinizde (önemli):**
+xDrip yalnızca ilk eklediğiniz sensörü dinler; yeni sensörü kendiliğinden bulmaz. Yeni sensörü taktıktan ve resmi uygulamada eşleştirdikten sonra:
+
+1. xDrip'te **Cihazlar** sekmesinde Sibionics GS1 sensörüne dokunun ve cihazı **silin** (çöp kutusu simgesi).
+2. Yukarıdaki **3. xDrip'te sensörü ekleme** adımlarıyla cihazı yeniden ekleyin.
+
 ## 7. Sorun olursa
 
 - **"Resmi Sibionics uygulamasını açın..." yazısı kalıyor:** Resmi uygulamayı açın, sensöre bağlı olduğunu kontrol edin, birkaç dakika bekleyin.
 - **Hâlâ değer yok:** Isınma (60 dk) ve ilk parmak ucu kalibrasyonunun yapıldığını kontrol edin.
+- **Sensörü değiştirdim, xDrip'te değer gelmiyor:** Cihazı Cihazlar sekmesinden silip yeniden ekleyin (6. bölümdeki "Sensör değiştirdiğinizde" adımları).
 - **Uzun süredir veri gelmediyse:** xDrip kendiliğinden bağlantıyı yeniler. Düzelmezse Sorun Raporu dosyasını (yukarıdaki adımlar) ve Cihazlar'daki sensör ekranının görüntüsünü bize gönderin.
 - Değerlerden şüpheleniyorsanız her zaman resmi uygulamaya ve parmak ucu ölçümüne güvenin.
 

@@ -53,7 +53,8 @@
 
 **Interfaces:**
 - Produces:
-  - `enum ConstantsInstaraG1`: `serviceUUID`, `notifyCharacteristicUUID`, `writeCharacteristicUUID`, `minValidMmol = 2.0`, `maxValidMmol = 26.0`, `maxPlausibleMmol = 40.0`, `clampLowMgDl = 36.0`, `clampHighMgDl = 468.0`, `defaultIntervalMinutes = 5`, `validIntervalRange = 1...15`, `intervalSampleCount = 6`, `sensorLifeDays = 21.0`, `warmupMinutes = 15.0`, `newSensorSeqDrop = 12`, `newSensorStartShift: TimeInterval = 1800`, `newSensorConfirmWindow: TimeInterval = 600`, `fragmentTimeout: TimeInterval = 2`, `resubscribeAfterSeconds = 900`, `releaseAfterSeconds = 1800`, `reconnectDelays: [TimeInterval] = [5, 10, 15]`. Watchdog süreleri, 5 dakikalık aralık için Sibionics'in 300/900 değerlerinin üç katı.
+  - `enum ConstantsInstaraG1`: `serviceUUID`, `notifyCharacteristicUUID`, `writeCharacteristicUUID`, `minValidMmol = 2.0`, `maxValidMmol = 26.0`, `maxPlausibleMmol = 40.0`, `clampLowMgDl = 36.0`, `clampHighMgDl = 468.0`, `defaultIntervalMinutes = 5`, `validIntervalRange = 1...15`, `intervalSampleCount = 6`, `sensorLifeDays = 21.0`, `warmupMinutes = 15.0`, `newSensorSeqDrop = 12`, `minPlausibleStepSeconds: TimeInterval = 30`, `maxPlausibleStepSeconds: TimeInterval = 1800`, `sensorStartTolerance: TimeInterval = 1800`, `fragmentTimeout: TimeInterval = 2`, `resubscribeAfterSeconds = 900`, `releaseAfterSeconds = 1800`, `reconnectDelays: [TimeInterval] = [5, 10, 15]`. Watchdog süreleri, 5 dakikalık aralık için Sibionics'in 300/900 değerlerinin üç ve iki katı.
+  - *Yürütme sırasında değişti:* ilk listedeki `newSensorStartShift` (1800) ve `newSensorConfirmWindow` (600) kaldırıldı (başlangıç kayması kuralı yerine adım kuralı, Task 3). `minPlausibleStepSeconds`, `maxPlausibleStepSeconds` (Task 3) ve tek ortak 30 dakikalık tolerans `sensorStartTolerance` (oturum başlangıcı düzeltmesi, transmitter'daki sensör uyuşmazlığı ve doğrulamanın aktif sensöre bağlılığı; final inceleme) eklendi.
   - `enum InstaraG1Packet: Equatable`:
     - `case realtime(seq: Int, mmol: Double)`
     - `case historyHeader(frameCount: Int)`
@@ -215,13 +216,15 @@ final class InstaraG1ProtocolTests: XCTestCase {
   - İkisi de varsa ve farklıysa `log`'a `INTERVAL-MISMATCH` yazılır.
 - **History:** `seq = startSeq + i`, `t = refDate − (refSeq − seq) × interval`. `t > receivedAt` ise atılır. Ref yoksa (anlık okuma görülmemişse) history ertelenmez, atılır ve `HISTORY-NO-REF` log'lanır.
 - **Tekrar:** `seenSeqs` içindeki seq tekrar üretilmez. Yeni hesaplanan zaman saklanandan 120 sn'den fazla farklıysa `log`'a `CLOCK-MISMATCH` yazılır; saklanan zaman değişmez.
-- **Başlangıç:** `sensorStart = refDate − refSeq × interval`; ilk realtime'da set edilir.
-- **Yeni sensör:** iki aday tipi var.
-  - `seq < lastSeq − 12` olan bir realtime aday olur.
-  - Ölçülen aralık varken türetilen başlangıcı `sensorStart`'tan 30 dk'dan fazla kayan bir realtime da aday olur.
+- **Başlangıç:** `sensorStart = refDate − refSeq × interval`; ilk realtime'da (varsayılan 5 dk ile) set edilir.
+  - *Yürütme sırasında değişti:* aralık **ilk kez ölçüldüğünde** bir kez yeniden hesaplanır; sonraki aralık değişimleri yalnızca `INTERVAL-CHANGE` log'lar. Bu yeniden hesaplama başlangıcı `sensorStartTolerance`'tan (30 dk) fazla kaydırırsa `newSensorStart` set edilir ve `SENSOR-START-CORRECTED` log'lanır. `SEQ-REANCHOR`'dan sonra `sensorStartLocked` ile kilitlenir.
+- **Yeni sensör** (*yürütme sırasında değişti*: ilk taslaktaki başlangıç kayması kuralı ve 10 dk'lık onay penceresi kaldırıldı). Adım = referanstan `Δt / Δseq`.
+  - Aday: `seq < lastSeq − 12` ya da ileri adım > `maxPlausibleStepSeconds` (1800 sn/sıra).
   - İlk aday `suspect` olarak saklanır, okuma üretilmez ve `SESSION-SUSPECT` log'lanır.
-  - Sonraki realtime aynı koşulu sağlıyorsa (`seq > suspect.seq` ve türetilen başlangıçlar arasında 10 dk'dan az fark) yeni oturum açılır. Bu durumda `state` sıfırlanır, `newSensorStart` set edilir ve iki okuma da üretilir.
-  - Sağlamıyorsa `suspect` temizlenir ve paket normal işlenir.
+  - Onay: sonraki realtime da aday, `seq > suspect.seq` ve suspect ile arasındaki adım akla yatkın (30–1800 sn/sıra) ise yeni oturum açılır. `state` sıfırlanır (`intervalFromSensor` korunur), `newSensorStart` set edilir ve iki okuma da üretilir.
+  - Sağlamıyorsa `suspect` temizlenir (`SESSION-SUSPECT-CLEARED`) ve paket normal işlenir.
+  - İleri adım < `minPlausibleStepSeconds` (30 sn/sıra) asla aday değildir: `jumpCandidate` olarak bekletilir (`SEQ-JUMP`). Sonraki paket referansa göre yine fazla hızlı ama `jumpCandidate`'e göre adımı akla yatkınsa referans yeni numaralandırmaya taşınır (`SEQ-REANCHOR`, yeni oturum yok, iki okuma üretilir); aksi halde `jumpCandidate` atılır (`SEQ-JUMP-CLEARED`).
+- **Durumun çözülmesi** (*final inceleme*): `InstaraG1SessionState` hoşgörülü çözülür; eksik ya da okunamayan alanlar yeni bir durumun varsayılanını alır, böylece eski sürümün kaydettiği durum kaybolmaz.
 
 - [ ] **Step 1: Testleri yaz**
   - `testFirstRealtimeSetsStartWithDefaultInterval`: seq 288, t0 → `sensorStart == t0 − 288×300`.
@@ -236,7 +239,7 @@ final class InstaraG1ProtocolTests: XCTestCase {
   - `testZeroAndAbsurdAreDropped`: 0 ve 50.1 → okuma yok, log'da `OUT-OF-RANGE`.
   - `testSingleLowerSequenceDoesNotStartNewSession`: lastSeq 500; seq 3 gelir → okuma yok, `newSensorStart == nil`; ardından seq 501 → normal okuma, suspect temiz.
   - `testTwoConsistentLowerSequencesStartNewSession`: lastSeq 500; seq 3 @t, seq 4 @t+300 → ikincide `newSensorStart` set, iki okuma üretilir.
-  - `testStartShiftNeedsMeasuredInterval`: aralık ölçülmemişken başlangıç kayması aday üretmez.
+  - `testStartShiftNeedsMeasuredInterval`: aralık ölçülmemişken başlangıç kayması aday üretmez. (*Yürütme sırasında değişti:* kural kaldırıldığı için yerine adım kuralı testleri geldi, ör. `testImplausibleForwardJumpIsSuspect`, `testBurstOfFastPacketsDoesNotStartNewSession`, `testRealSeqJumpReanchorsWithoutNewSession`.)
 - [ ] **Step 2: FAIL gör** (`InstaraG1SessionTests`).
 - [ ] **Step 3: `InstaraG1Session` uygula.**
 - [ ] **Step 4: PASS gör.**

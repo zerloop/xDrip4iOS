@@ -45,11 +45,11 @@ Biz onay verene kadar şunlar **çalışmaz** (bilerek kapatıldı):
 
 Açık kalan uyarılar:
 
-- **Veri kaybı (eksik okuma) uyarısı**: Bu uyarı gelirse resmi uygulamanın bağlantısı kopmuş demektir. Resmi uygulamayı açıp sensöre bağlı olduğunu kontrol edin.
+- **Kaçırılan Okumalar** uyarısı (veri kaybı): Bu uyarı gelirse resmi uygulamanın bağlantısı kopmuş demektir. Resmi uygulamayı açıp sensöre bağlı olduğunu kontrol edin.
 - Sensör ömrü (süre dolumu) uyarısı
 - Loop durdu uyarısı
 
-**Doğrulama anahtarı:** Instara cihaz ekranında **"Değerleri doğruladım — Loop ve paylaşımı aç"** anahtarı vardır. **Biz (geliştirici ekip) karşılaştırmanın iyi olduğunu size bildirmeden bu anahtarı AÇMAYIN.** Açmak Loop'u ve paylaşımı devreye sokar. Yeni bir sensör taktığınızda anahtar kendiliğinden kapanır; yine bizden onay beklemeden açmayın.
+**Doğrulama anahtarı:** Instara cihaz ekranında **"Değerleri doğruladım — Loop ve paylaşımı aç"** anahtarı vardır. **Biz (geliştirici ekip) karşılaştırmanın iyi olduğunu size bildirmeden bu anahtarı AÇMAYIN.** Açmak Loop'u ve paylaşımı devreye sokar. Anahtar ancak xDrip sensörden veri almaya başladıktan sonra kullanılabilir hâle gelir; öncesinde altında **"Önce sensör verisi gelmeli"** yazar. Yeni bir sensör taktığınızda anahtar kendiliğinden kapanır; yine bizden onay beklemeden açmayın.
 
 ## 6. Bizden istenenler
 
@@ -78,10 +78,19 @@ Dikkat:
 **Notlar:**
 Test sırasında yaptığınız şeyleri kısaca not edin. Örneğin: telefonu yeniden başlattım, resmi uygulamayı kapattım, sensörü değiştirdim, Bluetooth'u kapatıp açtım. Saat bilgisi de ekleyin. Yeni sensör taktığınızda saatini not edin.
 
+**Sensör değiştirdiğinizde (önemli):**
+xDrip yalnızca ilk eklediğiniz sensörü dinler; yeni sensörü kendiliğinden bulmaz. Yeni sensörü taktıktan ve resmi uygulamada eşleştirdikten sonra:
+
+1. xDrip'te **Cihazlar** sekmesinde Instara sensörüne dokunun ve cihazı **silin** (çöp kutusu simgesi).
+2. Yukarıdaki **3. xDrip'te sensörü ekleme** adımlarıyla cihazı yeniden ekleyin.
+
+Cihazı silmek doğrulama anahtarını da kapatır. Yeni sensör için anahtarı yine bizden onay gelmeden açmayın.
+
 ## 7. Sorun olursa
 
 - **"Resmi Instara uygulamasını açın ve sensörün bağlı olduğundan emin olun." yazısı kalıyor:** Resmi uygulamayı açın, sensöre bağlı olduğunu kontrol edin, birkaç dakika bekleyin.
 - **Hâlâ değer yok:** Sensörün ısınmasının bittiğini ve resmi uygulamanın değer gösterdiğini kontrol edin.
+- **Sensörü değiştirdim, xDrip'te değer gelmiyor:** Cihazı Cihazlar sekmesinden silip yeniden ekleyin (6. bölümdeki "Sensör değiştirdiğinizde" adımları).
 - **Uzun süredir veri gelmediyse:** xDrip kendiliğinden bağlantıyı yeniler. Düzelmezse Sorun Raporu dosyasını (yukarıdaki adımlar) ve Cihazlar'daki sensör ekranının görüntüsünü bize gönderin.
 - Değerlerden şüpheleniyorsanız her zaman resmi uygulamaya güvenin.
 
