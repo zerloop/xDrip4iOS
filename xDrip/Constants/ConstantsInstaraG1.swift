@@ -47,11 +47,11 @@ enum ConstantsInstaraG1 {
     /// a realtime sequence number more than this below the last one is a new-sensor candidate
     static let newSensorSeqDrop = 12
 
-    /// a forward step whose implied interval (Δt / Δseq) is below this is implausible and a new-sensor candidate, seconds
+    /// a forward step whose implied interval (Δt / Δseq) is below this is a sequence jump (never a new sensor), seconds
     static let minPlausibleStepSeconds: TimeInterval = 30
 
-    /// a forward step whose implied interval (Δt / Δseq) is above this (15.5 minutes) is implausible and a new-sensor candidate, seconds
-    static let maxPlausibleStepSeconds: TimeInterval = 930
+    /// a forward step whose implied interval (Δt / Δseq) is above this (30 minutes: a 15 minute interval up to 15 minutes late) is a new-sensor candidate, seconds
+    static let maxPlausibleStepSeconds: TimeInterval = 1800
 
     /// a partial frame older than this is dropped, seconds
     static let fragmentTimeout: TimeInterval = 2

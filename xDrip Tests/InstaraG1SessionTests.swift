@@ -69,9 +69,9 @@ final class InstaraG1SessionTests: XCTestCase {
     func testMeasuredSampleOutsideRangeIsDiscarded() {
         var state = InstaraG1SessionState()
         _ = realtime(10, t0, &state)
-        // 930 s per step is still a plausible step but rounds to 16 minutes, above the valid range
-        XCTAssertEqual(realtime(11, t0.addingTimeInterval(930), &state).readings.count, 1)
-        XCTAssertEqual(realtime(12, t0.addingTimeInterval(1860), &state).readings.count, 1)
+        // 20 minutes per step is a plausible (late) step but above the valid interval range
+        XCTAssertEqual(realtime(11, t0.addingTimeInterval(1200), &state).readings.count, 1)
+        XCTAssertEqual(realtime(12, t0.addingTimeInterval(2400), &state).readings.count, 1)
         XCTAssertTrue(state.intervalSamples.isEmpty, "\(state.intervalSamples)")
         XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 5)
     }
@@ -215,7 +215,7 @@ final class InstaraG1SessionTests: XCTestCase {
         var state = InstaraG1SessionState()
         _ = realtime(500, t0.addingTimeInterval(-3000), &state)
         _ = realtime(3, t0, &state)
-        // lower again, but its derived start is an hour away from the suspect's
+        // lower again, but one sequence step 65 minutes after the suspect: implausible step, not confirmed
         let second = realtime(4, t0.addingTimeInterval(3900), &state)
         XCTAssertNil(second.newSensorStart)
         XCTAssertTrue(second.readings.isEmpty)
@@ -337,6 +337,73 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertNil(state.seenSeqs[499])
     }
 
+    func testBurstOfFastPacketsDoesNotStartNewSession() {
+        var state = InstaraG1SessionState()
+        var t = t0
+        for seq in 10...15 {
+            _ = realtime(seq, t, &state)
+            t = t.addingTimeInterval(60)
+        }
+        t = t.addingTimeInterval(-60)
+        XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 1)
+        var results = [InstaraG1SessionResult]()
+        results.append(realtime(16, t.addingTimeInterval(1), &state))
+        results.append(realtime(17, t.addingTimeInterval(2), &state))
+        XCTAssertTrue(results.allSatisfy { $0.readings.isEmpty })
+        XCTAssertNotNil(state.jumpCandidate)
+        XCTAssertNil(state.suspect)
+        results.append(realtime(18, t.addingTimeInterval(60), &state))
+        results.append(realtime(19, t.addingTimeInterval(120), &state))
+        XCTAssertTrue(results.allSatisfy { $0.newSensorStart == nil })
+        XCTAssertFalse(results.flatMap { $0.log }.contains { $0.hasPrefix("SESSION-") })
+        XCTAssertEqual(state.lastSeq, 19)
+    }
+
+    func testRealSeqJumpReanchorsWithoutNewSession() {
+        var state = InstaraG1SessionState()
+        let t = t0
+        _ = realtime(100, t, &state)
+        let jump = realtime(60000, t.addingTimeInterval(300), &state)
+        XCTAssertTrue(jump.readings.isEmpty)
+        XCTAssertTrue(logContains(jump, "SEQ-JUMP"), "\(jump.log)")
+        let reanchor = realtime(60001, t.addingTimeInterval(600), &state)
+        XCTAssertNil(jump.newSensorStart)
+        XCTAssertNil(reanchor.newSensorStart)
+        XCTAssertTrue(logContains(reanchor, "SEQ-REANCHOR"), "\(reanchor.log)")
+        XCTAssertEqual(reanchor.readings.map { $0.seq }, [60000, 60001])
+        XCTAssertEqual(reanchor.readings.map { $0.timeStamp }, [t.addingTimeInterval(300), t.addingTimeInterval(600)])
+        XCTAssertEqual(state.refSeq, 60001)
+        XCTAssertNil(state.jumpCandidate)
+        let normal = realtime(60002, t.addingTimeInterval(900), &state)
+        XCTAssertEqual(normal.readings.map { $0.seq }, [60002])
+        XCTAssertNil(normal.newSensorStart)
+        XCTAssertFalse(normal.log.contains { $0.hasPrefix("SESSION-") || $0.hasPrefix("SEQ-") }, "\(normal.log)")
+    }
+
+    func testFastOutlierIsClearedByNormalPacket() {
+        var state = InstaraG1SessionState()
+        _ = realtime(100, t0, &state)
+        _ = realtime(101, t0.addingTimeInterval(1), &state)
+        XCTAssertEqual(state.jumpCandidate?.seq, 101)
+        let normal = realtime(101, t0.addingTimeInterval(300), &state)
+        XCTAssertEqual(normal.readings.map { $0.timeStamp }, [t0.addingTimeInterval(300)])
+        XCTAssertNil(state.jumpCandidate)
+    }
+
+    func testFifteenMinuteIntervalLatePacketIsNotSuspect() {
+        var state = InstaraG1SessionState()
+        _ = realtime(10, t0, &state)
+        _ = realtime(11, t0.addingTimeInterval(900), &state)
+        _ = realtime(12, t0.addingTimeInterval(1800), &state)
+        XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 15)
+        let late = realtime(13, t0.addingTimeInterval(1800 + 1200), &state)
+        XCTAssertEqual(late.readings.map { $0.seq }, [13])
+        XCTAssertNil(state.suspect)
+        XCTAssertFalse(logContains(late, "SESSION-SUSPECT"))
+        // the 20 minute sample is outside the valid interval range and not used
+        XCTAssertEqual(state.intervalSamples, [900, 900])
+    }
+
     func testOldSeenSeqsArePruned() {
         var state = InstaraG1SessionState()
         _ = realtime(10, t0, &state)
@@ -363,5 +430,9 @@ final class InstaraG1SessionTests: XCTestCase {
         let decoded = try JSONDecoder().decode(InstaraG1SessionState.self, from: JSONEncoder().encode(state))
         XCTAssertEqual(decoded, state)
         XCTAssertNotNil(decoded.suspect)
+        var jumpState = InstaraG1SessionState()
+        _ = realtime(10, t0, &jumpState)
+        _ = realtime(11, t0.addingTimeInterval(1), &jumpState)
+        XCTAssertEqual(try JSONDecoder().decode(InstaraG1SessionState.self, from: JSONEncoder().encode(jumpState)), jumpState)
     }
 }

@@ -25,6 +25,15 @@ struct InstaraG1Suspect: Codable, Equatable {
     let rawMmol: Double
 }
 
+/// a realtime packet whose sequence number is too far ahead for the time elapsed since the reference. Never a new sensor
+struct InstaraG1JumpCandidate: Codable, Equatable {
+    let seq: Int
+    /// receive time of the packet
+    let at: Date
+    /// value of the packet, emitted if a following packet re-anchors the reference
+    let rawMmol: Double
+}
+
 /// persistent (by the caller) state of the G1 session
 struct InstaraG1SessionState: Codable, Equatable {
     /// highest realtime sequence number of the current session
@@ -41,6 +50,8 @@ struct InstaraG1SessionState: Codable, Equatable {
     /// emitted sequence numbers and their time stamps, limited to the sensor life
     var seenSeqs: [Int: Date] = [:]
     var suspect: InstaraG1Suspect?
+    /// a realtime packet too fast after the reference (seq jumped ahead), waiting for a second packet to re-anchor
+    var jumpCandidate: InstaraG1JumpCandidate?
 }
 
 struct InstaraG1SessionResult {
@@ -243,8 +254,11 @@ enum InstaraG1Session {
 
         // candidate rules, always against the current (old) session
         let seqDrop = seq < lastSeq - ConstantsInstaraG1.newSensorSeqDrop
-        let forwardJump = seq > lastSeq && !isPlausibleStep(deltaT: receivedAt.timeIntervalSince(refDate), deltaSeq: seq - refSeq)
-        let isCandidate = seqDrop || forwardJump
+        let stepFromRef = seq > lastSeq ? receivedAt.timeIntervalSince(refDate) / Double(seq - refSeq) : nil
+        // too fast forward is never a new sensor, see jumpCandidate
+        let tooFast = stepFromRef.map { $0 < ConstantsInstaraG1.minPlausibleStepSeconds } ?? false
+        let tooSlow = stepFromRef.map { $0 > ConstantsInstaraG1.maxPlausibleStepSeconds } ?? false
+        let isCandidate = seqDrop || tooSlow
 
         if let suspect = state.suspect {
 
@@ -269,9 +283,38 @@ enum InstaraG1Session {
             context.log.append("SESSION-SUSPECT-CLEARED;suspectSeq=\(suspect.seq);seq=\(seq)")
         }
 
+        if tooFast {
+            if let jump = state.jumpCandidate, isPlausibleStep(deltaT: receivedAt.timeIntervalSince(jump.at), deltaSeq: seq - jump.seq) {
+                // the sequence number really jumped: same session, new reference
+                state.jumpCandidate = nil
+                let previousInterval = intervalMinutes(state)
+                let wasMeasured = measuredIntervalMinutes(state) != nil
+                addSample(deltaT: receivedAt.timeIntervalSince(jump.at), deltaSeq: seq - jump.seq, state: &state, context: &context)
+                state.lastSeq = seq
+                state.refSeq = seq
+                state.refDate = receivedAt
+                context.log.append("SEQ-REANCHOR;fromSeq=\(refSeq);jumpSeq=\(jump.seq);seq=\(seq)")
+                intervalMayHaveChanged(from: previousInterval, wasMeasured: wasMeasured, announced: false, state: &state, context: &context)
+                if case let .valid(jumpMgDl, jumpClamped) = classify(jump.rawMmol, seq: jump.seq, context: &context) {
+                    emit(seq: jump.seq, at: jump.at, mmol: jump.rawMmol, mgDl: jumpMgDl, clamped: jumpClamped, state: &state, context: &context)
+                }
+                emit(seq: seq, at: receivedAt, mmol: mmol, mgDl: mgDl, clamped: clamped, state: &state, context: &context)
+                return
+            }
+            state.jumpCandidate = InstaraG1JumpCandidate(seq: seq, at: receivedAt, rawMmol: mmol)
+            context.log.append("SEQ-JUMP;seq=\(seq);refSeq=\(refSeq);refDate=\(epoch(refDate));step=\(stepFromRef ?? 0)")
+            return
+        }
+
+        if let jump = state.jumpCandidate {
+            // a normal packet: the jump was an outlier, its reading is dropped
+            state.jumpCandidate = nil
+            context.log.append("SEQ-JUMP-CLEARED;jumpSeq=\(jump.seq);seq=\(seq)")
+        }
+
         if isCandidate {
             state.suspect = InstaraG1Suspect(seq: seq, at: receivedAt, derivedStart: derivedStart, rawMmol: mmol)
-            context.log.append("SESSION-SUSPECT;seq=\(seq);lastSeq=\(lastSeq);reason=\(seqDrop ? "seq-drop" : "forward-jump");refDate=\(epoch(refDate));derivedStart=\(epoch(derivedStart))")
+            context.log.append("SESSION-SUSPECT;seq=\(seq);lastSeq=\(lastSeq);reason=\(seqDrop ? "seq-drop" : "slow-forward");refDate=\(epoch(refDate));derivedStart=\(epoch(derivedStart))")
             return
         }
 
