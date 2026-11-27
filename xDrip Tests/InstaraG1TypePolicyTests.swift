@@ -7,6 +7,8 @@ final class InstaraG1TypePolicyTests: XCTestCase {
     private let defaults = UserDefaults.standard
 
     private let touchedKeys = [
+        UserDefaults.Key.isMaster.rawValue,
+        UserDefaults.Key.transmitterTypeAsString.rawValue,
         UserDefaults.Key.instaraG1ExportVerified.rawValue,
         UserDefaults.Key.instaraG1VerifiedSensorStart.rawValue,
         UserDefaults.Key.timeStampLatestLoopSharedBgReading.rawValue,
@@ -95,7 +97,14 @@ final class InstaraG1TypePolicyTests: XCTestCase {
         ]
     }
 
+    /// sets the active source without going through cgmTransmitterTypeAsString, whose setter has side effects
+    private func setActiveMasterSource(_ type: CGMTransmitterType) {
+        defaults.isMaster = true
+        defaults.set(type.rawValue, forKey: UserDefaults.Key.transmitterTypeAsString.rawValue)
+    }
+
     func testEnablingAdvancesExportCursors() {
+        setActiveMasterSource(.instaraG1)
         setAllCursors(.distantPast)
 
         let callTime = Date()
@@ -108,6 +117,19 @@ final class InstaraG1TypePolicyTests: XCTestCase {
         let fixed = Date(timeIntervalSince1970: 1_700_000_000)
         setAllCursors(fixed)
         defaults.setInstaraG1Verified(true, sensorStart: nil, reason: "test")
+        for (name, cursor) in allCursors() {
+            XCTAssertEqual(cursor, fixed, name)
+        }
+    }
+
+    func testEnablingWhileNotActiveSourceDoesNotAdvanceCursors() {
+        setActiveMasterSource(.dexcomG7)
+        let fixed = Date(timeIntervalSince1970: 1_700_000_000)
+        setAllCursors(fixed)
+
+        defaults.setInstaraG1Verified(true, sensorStart: nil, reason: "test")
+
+        XCTAssertTrue(defaults.instaraG1ExportVerified)
         for (name, cursor) in allCursors() {
             XCTAssertEqual(cursor, fixed, name)
         }

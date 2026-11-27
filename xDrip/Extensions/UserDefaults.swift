@@ -3095,11 +3095,15 @@ extension UserDefaults {
     /// - sensorStart: sensor start of the verified sensor, stored with the verification; cleared when turned off
     /// - reason: why the verification changes (user, new sensor, device deleted), written to the trace
     ///
-    /// Off to on advances all glucose export cursors to now: readings stored while unverified are never exported.
+    /// Off to on advances all glucose export cursors to now when Instara G1 is the active master source: readings
+    /// stored while unverified are never exported. For any other active source the cursors are left alone, so that
+    /// source's own export backlog is not skipped.
     func setInstaraG1Verified(_ on: Bool, sensorStart: Date?, reason: String) {
         let wasOn = instaraG1ExportVerified
+        let instaraIsActiveSource = isMaster && cgmTransmitterType == .instaraG1
+        let advancesCursors = on && !wasOn && instaraIsActiveSource
 
-        if on && !wasOn {
+        if advancesCursors {
             // before the flag flips, so no export path can see the backlog as exportable
             advanceGlucoseExportCursors(to: Date())
         }
@@ -3119,7 +3123,7 @@ extension UserDefaults {
         }
 
         let sensorStartText = on ? (sensorStart.map { ISO8601DateFormatter().string(from: $0) } ?? "nil") : "nil"
-        trace("INSTARA-VERIFY %{public}@ reason=%{public}@ sensorStart=%{public}@ previous=%{public}@", log: Self.instaraG1Log, category: ConstantsLog.categoryCGMInstaraG1, type: .info, on ? "on" : "off", reason, sensorStartText, wasOn ? "on" : "off")
+        trace("INSTARA-VERIFY %{public}@ reason=%{public}@ sensorStart=%{public}@ previous=%{public}@ activeSource=%{public}@ cursorsAdvanced=%{public}@", log: Self.instaraG1Log, category: ConstantsLog.categoryCGMInstaraG1, type: .info, on ? "on" : "off", reason, sensorStartText, wasOn ? "on" : "off", instaraIsActiveSource ? "yes" : "no", advancesCursors ? "yes" : "no")
     }
 
     private static let instaraG1Log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryCGMInstaraG1)
