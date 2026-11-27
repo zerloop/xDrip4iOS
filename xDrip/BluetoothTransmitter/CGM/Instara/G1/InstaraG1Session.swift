@@ -108,6 +108,9 @@ enum InstaraG1Session {
         case valid(mgDl: Double, clamped: Bool)
     }
 
+    /// a re-derived sensor start that moves more than this is reported as newSensorStart (R23)
+    private static let sensorStartCorrectionThreshold: TimeInterval = 30 * 60
+
     private static func epoch(_ date: Date?) -> String {
         guard let date = date else { return "nil" }
         return String(Int(date.timeIntervalSince1970))
@@ -171,8 +174,16 @@ enum InstaraG1Session {
         let current = intervalMinutes(state)
         let isMeasured = measuredIntervalMinutes(state) != nil
         if !wasMeasured, isMeasured, !state.sensorStartLocked, let refSeq = state.refSeq, let refDate = state.refDate {
-            state.sensorStart = refDate.addingTimeInterval(-Double(refSeq) * intervalSeconds(state))
+            let previousStart = state.sensorStart
+            let rederivedStart = refDate.addingTimeInterval(-Double(refSeq) * intervalSeconds(state))
+            state.sensorStart = rederivedStart
             context.log.append("SENSOR-START;reason=interval-measured;interval=\(current);sensorStart=\(epoch(state.sensorStart))")
+            // R23: a large correction is reported like a new start, so xDrip's active sensor (and the verification
+            // bound to it) follows the session start the mismatch check compares with
+            if let previousStart, abs(rederivedStart.timeIntervalSince(previousStart)) > sensorStartCorrectionThreshold {
+                context.newSensorStart = rederivedStart
+                context.log.append("SENSOR-START-CORRECTED;from=\(epoch(previousStart));to=\(epoch(rederivedStart))")
+            }
         } else if current != previous {
             context.log.append("INTERVAL-CHANGE;from=\(previous);to=\(current)")
         }

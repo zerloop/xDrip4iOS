@@ -50,6 +50,32 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertNil(state.suspect)
     }
 
+    func testFirstMeasuredIntervalCorrectsStartAndReportsIt() {
+        var state = InstaraG1SessionState()
+        XCTAssertNotNil(realtime(288, t0, &state).newSensorStart)
+        let second = realtime(289, t0.addingTimeInterval(60), &state)
+        XCTAssertNil(second.newSensorStart)
+        let third = realtime(290, t0.addingTimeInterval(120), &state)
+        let corrected = t0.addingTimeInterval(120 - 290 * 60)
+        XCTAssertEqual(third.newSensorStart, corrected)
+        XCTAssertEqual(state.sensorStart, corrected)
+        XCTAssertTrue(logContains(third, "SENSOR-START-CORRECTED;from=\(Int(t0.addingTimeInterval(-288 * 300).timeIntervalSince1970));to=\(Int(corrected.timeIntervalSince1970))"), "\(third.log)")
+        XCTAssertEqual(third.readings.count, 1)
+        // later packets do not report the start again
+        XCTAssertNil(realtime(291, t0.addingTimeInterval(180), &state).newSensorStart)
+    }
+
+    func testFirstMeasuredFiveMinuteIntervalDoesNotReportStartAgain() {
+        var state = InstaraG1SessionState()
+        XCTAssertNotNil(realtime(288, t0, &state).newSensorStart)
+        for i in 1...6 {
+            let result = realtime(288 + i, t0.addingTimeInterval(Double(i) * 300), &state)
+            XCTAssertNil(result.newSensorStart, "seq \(288 + i)")
+            XCTAssertFalse(logContains(result, "SENSOR-START-CORRECTED"), "\(result.log)")
+        }
+        XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 5)
+    }
+
     func testSensorIntervalUsedWhenNotMeasured() {
         var state = InstaraG1SessionState()
         XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 5)

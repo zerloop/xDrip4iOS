@@ -203,6 +203,31 @@ final class CGMInstaraG1TransmitterTests: XCTestCase {
         XCTAssertTrue(UserDefaults.standard.instaraG1ExportVerified)
     }
 
+    func testVerificationBoundToCorrectedStartIsKeptByNextPacket() {
+        // 1-minute sensor: the start derived with the default 5 minutes is corrected once the interval is measured
+        transmitter.handleNotification(realtime(seq: 288, tenthMmol: 72), now: t0)
+        transmitter.handleNotification(realtime(seq: 289, tenthMmol: 72), now: t0.addingTimeInterval(60))
+        transmitter.handleNotification(realtime(seq: 290, tenthMmol: 72), now: t0.addingTimeInterval(120))
+        spinMainRunLoop(0.3)
+
+        let corrected = t0.addingTimeInterval(120 - 290 * 60)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates.count, 2)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates.last ?? nil, corrected)
+        XCTAssertEqual(storedState()?.sensorStart, corrected)
+
+        // the user verifies against xDrip's active sensor, which now starts at the corrected start
+        UserDefaults.standard.setInstaraG1Verified(true, sensorStart: corrected, reason: "test")
+        let delivered = expectation(description: "glucose delivered")
+        cgmDelegate.onInfoReceived = { delivered.fulfill() }
+
+        transmitter.handleNotification(realtime(seq: 291, tenthMmol: 72), now: t0.addingTimeInterval(180))
+
+        wait(for: [delivered], timeout: 2)
+        XCTAssertEqual(cgmDelegate.newSensorStartDates.count, 2)
+        XCTAssertTrue(UserDefaults.standard.instaraG1ExportVerified)
+        XCTAssertEqual(UserDefaults.standard.instaraG1VerifiedSensorStart, corrected)
+    }
+
     func testUndecodableSessionStateFallsBackToFreshState() {
         UserDefaults.standard.set(Data("not json".utf8), forKey: sessionStateKey)
         let delivered = expectation(description: "glucose delivered")
