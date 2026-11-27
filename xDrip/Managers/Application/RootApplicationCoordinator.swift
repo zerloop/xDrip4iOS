@@ -1616,7 +1616,10 @@ import AppIntents
             lastObservedInstaraG1ExportVerified = isVerified
             // same refresh as for a transmitter type change: the source policy of the active source changed
             bgPostProcessingManager?.refreshSourceContext()
-            // publishes or clears the OS-AID app group data according to the new policy
+            // publishes or clears the OS-AID app group data according to the new policy. shareMetadata only acts
+            // for Trio; share() also clears latestReadings for the other targets (Loop) when the policy is blocked.
+            // Right after enabling, the export cursors are at now, so share() does not publish older readings
+            loopManager?.share()
             loopManager?.shareMetadata()
             if rootTabStateModel?.dependencies != nil {
                 publishRootHomeState()
@@ -3216,10 +3219,8 @@ extension RootApplicationCoordinator: @preconcurrency CGMTransmitterDelegate {
     /// 30 minutes apart. A verification without a sensor start or without an active sensor is never valid
     nonisolated static func instaraVerificationIsValid(verifiedStart: Date?, activeSensorStart: Date?) -> Bool {
         guard let verifiedStart, let activeSensorStart else { return false }
-        return abs(verifiedStart.timeIntervalSince(activeSensorStart)) <= instaraVerificationSensorStartTolerance
+        return abs(verifiedStart.timeIntervalSince(activeSensorStart)) <= ConstantsInstaraG1.sensorStartTolerance
     }
-
-    nonisolated static let instaraVerificationSensorStartTolerance: TimeInterval = 30 * 60
 
     /// app start: a verification restored for another sensor (or without an active sensor) is turned off
     private func revokeInstaraVerificationIfNotForActiveSensor() {

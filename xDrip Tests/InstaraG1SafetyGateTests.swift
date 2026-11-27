@@ -16,7 +16,10 @@ final class InstaraG1SafetyGateTests: XCTestCase {
         UserDefaults.Key.timeStampLatestNSUploadedBgReadingToNightscout.rawValue,
         UserDefaults.Key.timeStampLatestHealthKitStoreBgReading.rawValue,
         UserDefaults.Key.timeStampLatestDexcomShareUploadedBgReading.rawValue,
-        UserDefaults.Key.glucoseExportFloorTimeStamp.rawValue
+        UserDefaults.Key.glucoseExportFloorTimeStamp.rawValue,
+        UserDefaults.Key.loopShareType.rawValue,
+        UserDefaults.Key.loopDelaySchedule.rawValue,
+        UserDefaults.Key.readingsStoredInSharedUserDefaultsAsDictionary.rawValue
     ]
     private var savedValues = [String: Any]()
 
@@ -121,6 +124,71 @@ final class InstaraG1SafetyGateTests: XCTestCase {
         XCTAssertEqual(defaults.timeStampLatestLoopSharedBgReading, threeDaysAgo)
         XCTAssertEqual(defaults.timeStampLatestDexcomShareUploadedBgReading, threeDaysAgo)
         XCTAssertNil(defaults.glucoseExportFloorTimeStamp)
+    }
+
+    // MARK: - OS-AID share on a toggle change (F3)
+
+    private func makeLoopManager(_ coreDataManager: CoreDataManager) -> LoopManager {
+        LoopManager(
+            coreDataManager: coreDataManager,
+            activeSensorIsAnubisProvider: { false },
+            metadataContextProvider: {
+                XDripCGMMetadataContext(activeSensor: nil, transmitter: nil, sensorHealthIssue: nil, hasInitialCalibration: nil, lastCalibrationAt: nil, dexcomAlgorithmState: nil, libreSensorState: nil)
+            }
+        )
+    }
+
+    /// runs body with loopShareType .loop and the Loop app group's latestReadings restored afterwards
+    private func withLoopShare(_ body: (UserDefaults) throws -> Void) throws {
+        defaults.loopShareType = .loop
+        defaults.removeObject(forKey: UserDefaults.Key.loopDelaySchedule.rawValue)
+        let suiteName = try XCTUnwrap(defaults.loopShareType.sharedUserDefaultsSuiteName.toNilIfLength0())
+        let shared = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let previous = shared.object(forKey: "latestReadings")
+        defer {
+            if let previous { shared.set(previous, forKey: "latestReadings") } else { shared.removeObject(forKey: "latestReadings") }
+        }
+        try body(shared)
+    }
+
+    private func addReading(_ timeStamp: Date, _ coreDataManager: CoreDataManager) {
+        let reading = BgReading(timeStamp: timeStamp, sensor: nil, calibration: nil, rawData: 120, deviceName: nil, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+        reading.calculatedValue = 120
+    }
+
+    private func sharedReadingCount(_ shared: UserDefaults) throws -> Int? {
+        guard let data = shared.data(forKey: "latestReadings") else { return nil }
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [Any]).count
+    }
+
+    @MainActor
+    func testShareWhenUnverifiedClearsLoopReadings() throws {
+        try withLoopShare { shared in
+            shared.set(Data("[]".utf8), forKey: "latestReadings")
+            defaults.readingsStoredInSharedUserDefaultsAsDictionary = [["Value": 123.0]]
+            makeLoopManager(CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName)).share()
+            XCTAssertNil(shared.object(forKey: "latestReadings"))
+            XCTAssertNil(defaults.readingsStoredInSharedUserDefaultsAsDictionary)
+        }
+    }
+
+    @MainActor
+    func testShareRightAfterEnablingSharesNoBacklog() throws {
+        try withLoopShare { shared in
+            shared.removeObject(forKey: "latestReadings")
+            setAllCursors(threeDaysAgo)
+            let coreDataManager = CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName)
+            // stored while the toggle was off
+            addReading(Date(timeIntervalSinceNow: -600), coreDataManager)
+            defaults.setInstaraG1Verified(true, sensorStart: sensorStart, reason: "test")
+            let loopManager = makeLoopManager(coreDataManager)
+            loopManager.share()
+            XCTAssertNil(try sharedReadingCount(shared), "backlog must not be shared")
+            // a reading after enabling is shared normally
+            addReading(Date().addingTimeInterval(0.5), coreDataManager)
+            loopManager.share()
+            XCTAssertEqual(try sharedReadingCount(shared), 1)
+        }
     }
 
     // MARK: - restore check

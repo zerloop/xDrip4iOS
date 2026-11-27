@@ -171,9 +171,6 @@ class CGMInstaraG1Transmitter: BluetoothTransmitter, CGMTransmitter {
     /// used as BLE name when the peripheral does not advertise one, so that it can be added
     static let fallbackName = "Instara G1"
 
-    /// verification and session sensor start may differ this much before the verification is revoked
-    static let sensorMismatchTolerance: TimeInterval = 30 * 60
-
     // MARK: - status messages (user visible, localised in Texts_BluetoothPeripheralView)
 
     static let officialAppNotConnectedMessage = Texts_BluetoothPeripheralView.instaraG1StatusOfficialAppNotConnected
@@ -720,11 +717,13 @@ class CGMInstaraG1Transmitter: BluetoothTransmitter, CGMTransmitter {
             break
 
         case .resubscribe:
-            trace("watchdog: no glucose packet for %{public}@ seconds, re-subscribing to 8653000B", log: log, category: ConstantsLog.categoryCGMInstaraG1, type: .error, Int(elapsed).description)
-            updateDiagnostics { $0.statusMessage = Self.resubscribedMessage }
             if let characteristic {
+                trace("watchdog: no glucose packet for %{public}@ seconds, re-subscribing to 8653000B", log: log, category: ConstantsLog.categoryCGMInstaraG1, type: .error, Int(elapsed).description)
+                updateDiagnostics { $0.statusMessage = Self.resubscribedMessage }
                 setNotifyValue(false, for: characteristic)
                 setNotifyValue(true, for: characteristic)
+            } else {
+                trace("watchdog: no glucose packet for %{public}@ seconds, but 8653000B is not discovered, nothing to re-subscribe", log: log, category: ConstantsLog.categoryCGMInstaraG1, type: .error, Int(elapsed).description)
             }
 
         case .release:
@@ -930,7 +929,7 @@ class CGMInstaraG1Transmitter: BluetoothTransmitter, CGMTransmitter {
         guard defaults.instaraG1ExportVerified,
               let sessionSensorStart,
               let verifiedSensorStart = defaults.instaraG1VerifiedSensorStart else { return }
-        guard abs(sessionSensorStart.timeIntervalSince(verifiedSensorStart)) > sensorMismatchTolerance else { return }
+        guard abs(sessionSensorStart.timeIntervalSince(verifiedSensorStart)) > ConstantsInstaraG1.sensorStartTolerance else { return }
         trace("sensor mismatch, session start = %{public}@, verified start = %{public}@", log: log, category: ConstantsLog.categoryCGMInstaraG1, type: .error, sessionSensorStart.description(with: .current), verifiedSensorStart.description(with: .current))
         defaults.setInstaraG1Verified(false, sensorStart: nil, reason: "sensor-mismatch")
     }

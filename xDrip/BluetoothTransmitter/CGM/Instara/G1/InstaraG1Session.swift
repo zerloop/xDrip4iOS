@@ -54,6 +54,35 @@ struct InstaraG1SessionState: Codable, Equatable {
     var jumpCandidate: InstaraG1JumpCandidate?
     /// set by a SEQ-REANCHOR: sequence numbers no longer count from the sensor start, so sensorStart is not re-derived any more in this session
     var sensorStartLocked: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case lastSeq, refSeq, refDate, sensorStart, intervalFromSensor, intervalSamples, seenSeqs, suspect, jumpCandidate, sensorStartLocked
+    }
+}
+
+extension InstaraG1SessionState {
+
+    /// tolerant: a missing or unreadable field (e.g. a state saved by an older build) gets the value of a fresh state,
+    /// so the session is kept instead of being replaced by a fresh one
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        func value<T: Decodable>(_ type: T.Type, _ key: CodingKeys) -> T? {
+            (try? container.decodeIfPresent(type, forKey: key)) ?? nil
+        }
+        let fresh = InstaraG1SessionState()
+        self = fresh
+        lastSeq = value(Int.self, .lastSeq) ?? fresh.lastSeq
+        refSeq = value(Int.self, .refSeq) ?? fresh.refSeq
+        refDate = value(Date.self, .refDate) ?? fresh.refDate
+        sensorStart = value(Date.self, .sensorStart) ?? fresh.sensorStart
+        intervalFromSensor = value(Int.self, .intervalFromSensor) ?? fresh.intervalFromSensor
+        intervalSamples = value([Double].self, .intervalSamples) ?? fresh.intervalSamples
+        seenSeqs = value([Int: Date].self, .seenSeqs) ?? fresh.seenSeqs
+        // a nested value that cannot be decoded is dropped, the rest of the state is kept
+        suspect = value(InstaraG1Suspect.self, .suspect) ?? fresh.suspect
+        jumpCandidate = value(InstaraG1JumpCandidate.self, .jumpCandidate) ?? fresh.jumpCandidate
+        sensorStartLocked = value(Bool.self, .sensorStartLocked) ?? fresh.sensorStartLocked
+    }
 }
 
 struct InstaraG1SessionResult {
@@ -107,9 +136,6 @@ enum InstaraG1Session {
         case dropped
         case valid(mgDl: Double, clamped: Bool)
     }
-
-    /// a re-derived sensor start that moves more than this is reported as newSensorStart (R23)
-    private static let sensorStartCorrectionThreshold: TimeInterval = 30 * 60
 
     private static func epoch(_ date: Date?) -> String {
         guard let date = date else { return "nil" }
@@ -180,7 +206,7 @@ enum InstaraG1Session {
             context.log.append("SENSOR-START;reason=interval-measured;interval=\(current);sensorStart=\(epoch(state.sensorStart))")
             // R23: a large correction is reported like a new start, so xDrip's active sensor (and the verification
             // bound to it) follows the session start the mismatch check compares with
-            if let previousStart, abs(rederivedStart.timeIntervalSince(previousStart)) > sensorStartCorrectionThreshold {
+            if let previousStart, abs(rederivedStart.timeIntervalSince(previousStart)) > ConstantsInstaraG1.sensorStartTolerance {
                 context.newSensorStart = rederivedStart
                 context.log.append("SENSOR-START-CORRECTED;from=\(epoch(previousStart));to=\(epoch(rederivedStart))")
             }

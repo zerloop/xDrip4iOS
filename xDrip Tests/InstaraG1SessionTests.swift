@@ -469,4 +469,42 @@ final class InstaraG1SessionTests: XCTestCase {
         _ = realtime(11, t0.addingTimeInterval(1), &jumpState)
         XCTAssertEqual(try JSONDecoder().decode(InstaraG1SessionState.self, from: JSONEncoder().encode(jumpState)), jumpState)
     }
+    // MARK: - tolerant decoding (F6)
+
+    func testStateFromOlderBuildDecodesWithDefaults() throws {
+        var state = InstaraG1SessionState()
+        _ = realtime(500, t0, &state)
+        _ = realtime(501, t0.addingTimeInterval(300), &state)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any])
+        json.removeValue(forKey: "sensorStartLocked")
+        json.removeValue(forKey: "jumpCandidate")
+        json.removeValue(forKey: "intervalSamples")
+        let old = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try JSONDecoder().decode(InstaraG1SessionState.self, from: old)
+        XCTAssertEqual(decoded.sensorStart, state.sensorStart)
+        XCTAssertEqual(decoded.lastSeq, 501)
+        XCTAssertEqual(decoded.refSeq, 501)
+        XCTAssertEqual(decoded.seenSeqs, state.seenSeqs)
+        XCTAssertFalse(decoded.sensorStartLocked)
+        XCTAssertNil(decoded.jumpCandidate)
+        XCTAssertEqual(decoded.intervalSamples, [])
+    }
+
+    func testStateWithBrokenNestedValueDecodesWithoutIt() throws {
+        var state = InstaraG1SessionState()
+        _ = realtime(500, t0, &state)
+        _ = realtime(3, t0.addingTimeInterval(300), &state)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any])
+        var suspect = try XCTUnwrap(json["suspect"] as? [String: Any])
+        suspect.removeValue(forKey: "rawMmol")
+        json["suspect"] = suspect
+        let decoded = try JSONDecoder().decode(InstaraG1SessionState.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(decoded.suspect)
+        XCTAssertEqual(decoded.lastSeq, 500)
+        XCTAssertEqual(decoded.sensorStart, state.sensorStart)
+    }
+
+    func testEmptyJSONDecodesAsFreshState() throws {
+        XCTAssertEqual(try JSONDecoder().decode(InstaraG1SessionState.self, from: Data("{}".utf8)), InstaraG1SessionState())
+    }
 }

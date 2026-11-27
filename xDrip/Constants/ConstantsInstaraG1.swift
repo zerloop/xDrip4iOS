@@ -53,6 +53,11 @@ enum ConstantsInstaraG1 {
     /// a forward step whose implied interval (Δt / Δseq) is above this (30 minutes: a 15 minute interval up to 15 minutes late) is a new-sensor candidate, seconds
     static let maxPlausibleStepSeconds: TimeInterval = 1800
 
+    /// sensor starts that differ at most this much belong to the same sensor: a re-derived session start that moves more
+    /// is reported as a new start, and a verification whose sensor start differs more (from the session or from xDrip's
+    /// active sensor) is revoked, seconds
+    static let sensorStartTolerance: TimeInterval = 1800
+
     /// a partial frame older than this is dropped, seconds
     static let fragmentTimeout: TimeInterval = 2
 
