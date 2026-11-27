@@ -113,38 +113,56 @@ enum InstaraG1Protocol {
 struct InstaraG1FrameAssembler {
 
     private var buffer = [UInt8]()
-    private var lastFeed: Date?
+
+    /// when the currently pending fragment started; not refreshed while the same fragment merely grows
+    private var pendingSince: Date?
 
     mutating func feed(_ data: Data, now: Date) -> [InstaraG1Packet] {
         // a stale partial frame will never complete, drop it
-        if !buffer.isEmpty, let last = lastFeed, now.timeIntervalSince(last) > ConstantsInstaraG1.fragmentTimeout {
+        if !buffer.isEmpty, let since = pendingSince, now.timeIntervalSince(since) > ConstantsInstaraG1.fragmentTimeout {
             buffer.removeAll()
         }
-        lastFeed = now
+        if buffer.isEmpty { pendingSince = nil }
         buffer.append(contentsOf: data)
 
         var packets = [InstaraG1Packet]()
+        var advanced = false
 
         while true {
             // discard everything before the next header
             guard let start = headerIndex() else {
                 // keep a trailing 0x55 which may be the first half of a header
                 if let last = buffer.last, last == InstaraG1Protocol.headerByte0 {
+                    if buffer.count > 1 { advanced = true }
                     buffer = [last]
                 } else {
+                    if !buffer.isEmpty { advanced = true }
                     buffer.removeAll()
                 }
                 break
             }
-            if start > 0 { buffer.removeFirst(start) }
+            if start > 0 { buffer.removeFirst(start); advanced = true }
 
             // need header + cmd + len to know the frame size
             guard buffer.count >= 4 else { break }
             let total = Int(buffer[3]) + 5
             guard buffer.count >= total else { break }
 
-            packets.append(InstaraG1Protocol.parse(frame: Data(buffer[0..<total])))
-            buffer.removeFirst(total)
+            let packet = InstaraG1Protocol.parse(frame: Data(buffer[0..<total]))
+            packets.append(packet)
+            advanced = true
+            if case .invalid(let reason, _) = packet, reason == "CRC-FAIL" {
+                // len may be corrupt: skip only the header and resync on the next one
+                buffer.removeFirst(2)
+            } else {
+                buffer.removeFirst(total)
+            }
+        }
+
+        if buffer.isEmpty {
+            pendingSince = nil
+        } else if advanced || pendingSince == nil {
+            pendingSince = now
         }
 
         return packets

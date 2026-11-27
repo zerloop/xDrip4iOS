@@ -30,12 +30,17 @@ final class InstaraG1ProtocolTests: XCTestCase {
     }
     func testUnlistedKeepsPayload() { XCTAssertEqual(InstaraG1Protocol.parse(frame: hex("55aa600101ca")), .unlisted(cmd: 0x60, payload: hex("01"))) }
     func testBadCrcHeaderAndLengthAreInvalid() {
-        for f in ["55aa10040120004800", "56aa10040120004863", "55aa100501200048", "55aa"] {
-            guard case .invalid = InstaraG1Protocol.parse(frame: hex(f)) else { return XCTFail(f) }
+        let cases: [(String, String)] = [("55aa10040120004800", "CRC-FAIL"), ("56aa10040120004863", "HEADER"), ("55aa100501200048", "LAYOUT-MISMATCH"), ("55aa", "LAYOUT-MISMATCH")]
+        for (f, reason) in cases {
+            guard case let .invalid(r, _) = InstaraG1Protocol.parse(frame: hex(f)) else { return XCTFail(f) }
+            XCTAssertEqual(r, reason, f)
         }
     }
     func testHistoryWithOddValueBytesIsInvalid() {
         guard case .invalid = InstaraG1Protocol.parse(frame: hex("55aa3007011e000500460074")) else { return XCTFail() }
+        // valid CRC, so the odd value byte count itself must be rejected
+        guard case let .invalid(reason, _) = InstaraG1Protocol.parse(frame: hex("55aa3007011e00050046005b")) else { return XCTFail() }
+        XCTAssertEqual(reason, "LAYOUT-MISMATCH")
     }
     func testAssemblerTwoFramesInOneNotification() {
         var a = InstaraG1FrameAssembler()
@@ -54,5 +59,17 @@ final class InstaraG1ProtocolTests: XCTestCase {
     func testAssemblerSkipsGarbageBeforeHeader() {
         var a = InstaraG1FrameAssembler()
         XCTAssertEqual(a.feed(hex("0102" + "55aa20015541"), now: t0), [.battery(percent: 85)])
+    }
+    func testAssemblerResyncsAfterCorruptLength() {
+        var a = InstaraG1FrameAssembler()
+        let result = a.feed(hex("55aa10050120004863" + "55aa20015541"), now: t0)
+        XCTAssertTrue(result.contains(.battery(percent: 85)), "\(result)")
+    }
+    func testAssemblerStalenessIsMeasuredFromFragmentStart() {
+        var a = InstaraG1FrameAssembler()
+        _ = a.feed(hex("55aa100401"), now: t0)
+        _ = a.feed(hex("20"), now: t0.addingTimeInterval(1.5))
+        _ = a.feed(hex("00"), now: t0.addingTimeInterval(3))
+        XCTAssertEqual(a.feed(hex("4863"), now: t0.addingTimeInterval(3.5)), [])
     }
 }
