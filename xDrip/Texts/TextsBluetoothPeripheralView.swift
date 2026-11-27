@@ -523,6 +523,30 @@ class Texts_BluetoothPeripheralView {
         return NSLocalizedString("sibionicsGS1StatusReleased", tableName: filename, bundle: Bundle.main, value: "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.", comment: "Sibionics GS1 status, no data for a long time, the connection is being re-established")
     }()
 
+    static let instaraG1StatusOfficialAppNotConnected: String = {
+        return NSLocalizedString("instaraG1StatusOfficialAppNotConnected", tableName: filename, bundle: Bundle.main, value: "Resmi Instara uygulamasını açın ve sensörün bağlı olduğundan emin olun.", comment: "Instara G1 status, no sensor connection of the official app was found")
+    }()
+
+    static let instaraG1StatusConnecting: String = {
+        return NSLocalizedString("instaraG1StatusConnecting", tableName: filename, bundle: Bundle.main, value: "Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…", comment: "Instara G1 status, the official app's connection was found and xDrip is connecting")
+    }()
+
+    static let instaraG1StatusConnectedWaiting: String = {
+        return NSLocalizedString("instaraG1StatusConnectedWaiting", tableName: filename, bundle: Bundle.main, value: "Bağlandı, glikoz verisi bekleniyor.", comment: "Instara G1 status, connected but no glucose packet received yet")
+    }()
+
+    static let instaraG1StatusReceiving: String = {
+        return NSLocalizedString("instaraG1StatusReceiving", tableName: filename, bundle: Bundle.main, value: "Glikoz verisi alınıyor.", comment: "Instara G1 status, glucose packets are being received")
+    }()
+
+    static let instaraG1StatusResubscribed: String = {
+        return NSLocalizedString("instaraG1StatusResubscribed", tableName: filename, bundle: Bundle.main, value: "Bir süredir veri gelmedi, abonelik yenilendi.", comment: "Instara G1 status, no data for a while, the notification subscription was renewed")
+    }()
+
+    static let instaraG1StatusReleased: String = {
+        return NSLocalizedString("instaraG1StatusReleased", tableName: filename, bundle: Bundle.main, value: "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.", comment: "Instara G1 status, no data for a long time, the connection is being re-established")
+    }()
+
     static let sibionicsGS1ConnectionStatus: String = {
         return NSLocalizedString("sibionicsGS1ConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Bağlantı durumu", comment: "Sibionics GS1 diagnostics row title, connection status")
     }()

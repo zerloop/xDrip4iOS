@@ -16,6 +16,8 @@
 		4D9101082FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9101072FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift */; };
 		4D9102022FE8000100000001 /* InstaraG1Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9102012FE8000100000001 /* InstaraG1Session.swift */; };
 		4D9102042FE8000100000001 /* InstaraG1SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9102032FE8000100000001 /* InstaraG1SessionTests.swift */; };
+		4D9103022FE8000100000001 /* CGMInstaraG1Transmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9103012FE8000100000001 /* CGMInstaraG1Transmitter.swift */; };
+		4D9103042FE8000100000001 /* CGMInstaraG1TransmitterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9103032FE8000100000001 /* CGMInstaraG1TransmitterTests.swift */; };
 		4D8101042FE8000100000001 /* SibionicsGS1+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101032FE8000100000001 /* SibionicsGS1+CoreDataClass.swift */; };
 		4D8101062FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101052FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift */; };
 		4D8101082FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101072FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift */; };
@@ -1031,6 +1033,8 @@
 		4D9101072FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InstaraG1+BluetoothPeripheral.swift"; sourceTree = "<group>"; };
 		4D9102012FE8000100000001 /* InstaraG1Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstaraG1Session.swift; sourceTree = "<group>"; };
 		4D9102032FE8000100000001 /* InstaraG1SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstaraG1SessionTests.swift; sourceTree = "<group>"; };
+		4D9103012FE8000100000001 /* CGMInstaraG1Transmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGMInstaraG1Transmitter.swift; sourceTree = "<group>"; };
+		4D9103032FE8000100000001 /* CGMInstaraG1TransmitterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGMInstaraG1TransmitterTests.swift; sourceTree = "<group>"; };
 		4D9101092FE8000100000001 /* xdrip v39.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "xdrip v39.xcdatamodel"; sourceTree = "<group>"; };
 		4D8101032FE8000100000001 /* SibionicsGS1+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SibionicsGS1+CoreDataClass.swift"; sourceTree = "<group>"; };
 		4D8101052FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SibionicsGS1+CoreDataProperties.swift"; sourceTree = "<group>"; };
@@ -2361,6 +2365,7 @@
 			children = (
 				4D9100012FE8000100000001 /* InstaraG1Protocol.swift */,
 				4D9102012FE8000100000001 /* InstaraG1Session.swift */,
+				4D9103012FE8000100000001 /* CGMInstaraG1Transmitter.swift */,
 			);
 			path = G1;
 			sourceTree = "<group>";
@@ -2954,6 +2959,7 @@
 				4D9100052FE8000100000001 /* InstaraG1ProtocolTests.swift */,
 				4D9101012FE8000100000001 /* InstaraG1TypePolicyTests.swift */,
 				4D9102032FE8000100000001 /* InstaraG1SessionTests.swift */,
+				4D9103032FE8000100000001 /* CGMInstaraG1TransmitterTests.swift */,
 				4D8101012FE8000100000001 /* SibionicsGS1TypePolicyTests.swift */,
 				4D8102032FE8000100000001 /* SibionicsGS1SessionTests.swift */,
 				4D8103032FE8000100000001 /* CGMSibionicsGS1TransmitterTests.swift */,
@@ -4941,6 +4947,7 @@
 				4D9100062FE8000100000001 /* InstaraG1ProtocolTests.swift in Sources */,
 				4D9101022FE8000100000001 /* InstaraG1TypePolicyTests.swift in Sources */,
 				4D9102042FE8000100000001 /* InstaraG1SessionTests.swift in Sources */,
+				4D9103042FE8000100000001 /* CGMInstaraG1TransmitterTests.swift in Sources */,
 				4D8101022FE8000100000001 /* SibionicsGS1TypePolicyTests.swift in Sources */,
 				4D8102042FE8000100000001 /* SibionicsGS1SessionTests.swift in Sources */,
 				4D8103042FE8000100000001 /* CGMSibionicsGS1TransmitterTests.swift in Sources */,
@@ -5105,6 +5112,7 @@
 				4D8100022FE8000100000001 /* SibionicsGS1Protocol.swift in Sources */,
 				4D9100022FE8000100000001 /* InstaraG1Protocol.swift in Sources */,
 				4D9102022FE8000100000001 /* InstaraG1Session.swift in Sources */,
+				4D9103022FE8000100000001 /* CGMInstaraG1Transmitter.swift in Sources */,
 				4D8102022FE8000100000001 /* SibionicsGS1Session.swift in Sources */,
 				4D8103022FE8000100000001 /* CGMSibionicsGS1Transmitter.swift in Sources */,
 				4D8100042FE8000100000001 /* ConstantsSibionicsGS1.swift in Sources */,

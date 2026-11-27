@@ -430,6 +430,8 @@ extension UserDefaults {
         case sibionicsGS1ExperimentalWarningAcknowledged = "sibionicsGS1ExperimentalWarningAcknowledged"
         /// the user acknowledged the one-time experimental warning before adding an Instara G1
         case instaraG1ExperimentalWarningAcknowledged = "instaraG1ExperimentalWarningAcknowledged"
+        /// reading interval of the Instara G1 session in minutes, written by CGMInstaraG1Transmitter. Not backed up (prefix instaraG1.)
+        case instaraG1IntervalMinutes = "instaraG1.intervalMinutes"
 
         // M5Stack
 
@@ -2584,6 +2586,18 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.instaraG1ExperimentalWarningAcknowledged.rawValue)
+        }
+    }
+
+    /// reading interval of the Instara G1 session in minutes (InstaraG1Session.intervalMinutes), default 5.
+    /// Written by CGMInstaraG1Transmitter whenever the interval changes
+    var instaraG1IntervalMinutes: Int {
+        get {
+            let value = integer(forKey: Key.instaraG1IntervalMinutes.rawValue)
+            return value > 0 ? value : ConstantsInstaraG1.defaultIntervalMinutes
+        }
+        set {
+            set(newValue, forKey: Key.instaraG1IntervalMinutes.rawValue)
         }
     }
 

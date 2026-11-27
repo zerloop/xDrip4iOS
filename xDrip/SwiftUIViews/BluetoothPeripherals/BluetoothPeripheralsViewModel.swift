@@ -285,8 +285,7 @@ struct DexcomManualSensorCodeEntry {
     }
 
     func bluetoothPeripheralTypes(for category: BluetoothPeripheralCategory) -> [BluetoothPeripheralType] {
-        // Task 4: InstaraG1Type stays out of the add flow until its transmitter exists
-        let categoryTypes = BluetoothPeripheralType.allCases.filter { $0.category() == category && $0 != .InstaraG1Type }
+        let categoryTypes = BluetoothPeripheralType.allCases.filter { $0.category() == category }
 
         guard let preferredOrder = BluetoothPeripheralType.addFlowPreferredOrder[category] else {
             return categoryTypes

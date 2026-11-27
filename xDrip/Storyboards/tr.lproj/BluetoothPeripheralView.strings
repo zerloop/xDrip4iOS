@@ -202,6 +202,12 @@
 "sibionicsGS1StatusReceiving" = "Glikoz verisi alınıyor.";
 "sibionicsGS1StatusResubscribed" = "Bir süredir veri gelmedi, abonelik yenilendi.";
 "sibionicsGS1StatusReleased" = "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.";
+"instaraG1StatusOfficialAppNotConnected" = "Resmi Instara uygulamasını açın ve sensörün bağlı olduğundan emin olun.";
+"instaraG1StatusConnecting" = "Resmi uygulamanın bağlantısı bulundu, bağlanılıyor…";
+"instaraG1StatusConnectedWaiting" = "Bağlandı, glikoz verisi bekleniyor.";
+"instaraG1StatusReceiving" = "Glikoz verisi alınıyor.";
+"instaraG1StatusResubscribed" = "Bir süredir veri gelmedi, abonelik yenilendi.";
+"instaraG1StatusReleased" = "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.";
 "sibionicsGS1ConnectionStatus" = "Bağlantı durumu";
 "sibionicsGS1Firmware" = "Firmware";
 "sibionicsGS1FirmwareLegacy" = "Eski";

@@ -433,8 +433,18 @@ class BluetoothPeripheralManager: NSObject {
 
                 case .InstaraG1Type:
 
-                    // Task 4: the Instara G1 transmitter is not available yet, no transmitter is created
-                    trace("in getBluetoothTransmitter, case InstaraG1Type, transmitter not yet supported, returning nil", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+                    if let instaraG1 = bluetoothPeripheral as? InstaraG1 {
+
+                        if let cgmTransmitterDelegate = cgmTransmitterDelegate {
+
+                            newTransmitter = CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+
+                        } else {
+
+                            trace("in getBluetoothTransmitter, case InstaraG1Type but cgmTransmitterDelegate is nil, looks like a coding error ", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+
+                        }
+                    }
 
                 }
                 
@@ -526,8 +536,9 @@ class BluetoothPeripheralManager: NSObject {
                 }
 
             case .InstaraG1Type:
-                // Task 4: no Instara G1 transmitter class exists yet, so no transmitter can match this type
-                break
+                if bluetoothTransmitter is CGMInstaraG1Transmitter {
+                    return .InstaraG1Type
+                }
                 
             }
             
@@ -633,9 +644,11 @@ class BluetoothPeripheralManager: NSObject {
 
         case .InstaraG1Type:
 
-            // Task 4: the Instara G1 transmitter is not available yet. Unreachable, because InstaraG1Type is
-            // hidden from the add flow (BluetoothPeripheralsViewModel.bluetoothPeripheralTypes) until Task 4.
-            fatalError("in createNewTransmitter, InstaraG1Type, transmitter not yet supported")
+            guard let cgmTransmitterDelegate = cgmTransmitterDelegate else {
+                fatalError("in createNewTransmitter, InstaraG1Type, cgmTransmitterDelegate is nil")
+            }
+
+            return CGMInstaraG1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self, cGMTransmitterDelegate: cgmTransmitterDelegate)
             
         }
         
@@ -1144,11 +1157,18 @@ class BluetoothPeripheralManager: NSObject {
                         let index = insertInBluetoothPeripherals(bluetoothPeripheral: instaraG1)
 
                         if instaraG1.blePeripheral.shouldconnect {
-                            trace("in init, InstaraG1Type, transmitter not yet supported, no transmitter created", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
-                        }
 
-                        // Task 4: the Instara G1 transmitter is not available yet, keep an empty row for it
-                        bluetoothTransmitters.insert(nil, at: index)
+                            bluetoothTransmitters.insert(CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate), at: index)
+
+                            if bluetoothPeripheralType.category() == .CGM {
+                                currentCgmTransmitterAddress = blePeripheral.address
+                            }
+
+                        } else {
+
+                            bluetoothTransmitters.insert(nil, at: index)
+
+                        }
 
                     }
 
@@ -1390,8 +1410,8 @@ extension BluetoothPeripheralManager: BluetoothPeripheralManaging {
         if let tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral = tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral {
             
             tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.stopScanning()
-            // the passive Sibionics GS1 does not scan, stopScanning does not end its back-off retrieve retries
-            if tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMLibre3Transmitter || tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMSibionicsGS1Transmitter {
+            // the passive Sibionics GS1 and Instara G1 do not scan, stopScanning does not end their back-off retrieve retries
+            if tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMLibre3Transmitter || tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMSibionicsGS1Transmitter || tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral is CGMInstaraG1Transmitter {
                 tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.disconnectAndForget()
                 tempBlueToothTransmitterWhileScanningForNewBluetoothPeripheral.prepareForRelease()
             }
