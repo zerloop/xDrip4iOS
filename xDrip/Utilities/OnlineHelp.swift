@@ -435,6 +435,9 @@ extension BluetoothPeripheralType {
         case .SibionicsGS1Type:
             // no dedicated help page yet, use the generic direct CGM guide
             return .addDirectCGM
+        case .InstaraG1Type:
+            // no dedicated help page yet, use the generic direct CGM guide
+            return .addDirectCGM
         }
     }
 }

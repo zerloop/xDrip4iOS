@@ -212,6 +212,7 @@ enum XDripCGMMetadataBuilder {
             case .Libre: return "libre"
             case .Medtrum: return "medtrum"
             case .Sibionics: return "sibionics"
+            case .Instara: return "instara"
             case nil:
                 let description = model?.lowercased() ?? ""
                 if description.contains("guardian") { return "guardian" }
@@ -296,6 +297,7 @@ enum XDripCGMMetadataBuilder {
         case .Bubble: return "libre_bubble"
         case .medtrumTouchCareNano: return "medtrum_nano"
         case .sibionicsGS1: return "sibionics_gs1"
+        case .instaraG1: return "instara_g1"
         case nil: return nil
         }
     }
@@ -316,6 +318,8 @@ enum XDripCGMMetadataBuilder {
         switch type {
         case .dexcom, .dexcomG7: return 300
         case .Libre3, .Libre2, .miaomiao, .Bubble, .medtrumTouchCareNano, .sibionicsGS1: return 60
+        // Task 5: use the measured reading interval of the Instara G1 session, default until then
+        case .instaraG1: return Double(ConstantsInstaraG1.defaultIntervalMinutes * 60)
         case nil: return nil
         }
     }
@@ -345,6 +349,8 @@ enum XDripCGMMetadataBuilder {
             return .minutes(ConstantsMaster.minimumSensorWarmUpRequiredInMinutes)
         case .sibionicsGS1:
             return .minutes(ConstantsSibionicsGS1.warmupMinutes)
+        case .instaraG1:
+            return .minutes(ConstantsInstaraG1.warmupMinutes)
         case nil:
             let description = defaults.activeSensorDescription?.lowercased() ?? ""
             if description.contains("dexcom") { return .minutes(ConstantsMaster.minimumSensorWarmUpRequiredInMinutesDexcomG5G6) }

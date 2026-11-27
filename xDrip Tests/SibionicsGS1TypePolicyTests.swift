@@ -14,7 +14,8 @@ final class SibionicsGS1TypePolicyTests: XCTestCase {
         XCTAssertTrue(CGMTransmitterType.dexcomG7.allowsGlucoseExport)
         XCTAssertTrue(CGMTransmitterType.dexcomG7.allowsGlucoseAlarms)
 
-        for transmitter in CGMTransmitterType.allCases where transmitter != .sibionicsGS1 {
+        // instaraG1 depends on the user's verification, see InstaraG1TypePolicyTests
+        for transmitter in CGMTransmitterType.allCases where ![.sibionicsGS1, .instaraG1].contains(transmitter) {
             XCTAssertTrue(transmitter.allowsGlucoseExport, transmitter.rawValue)
             XCTAssertTrue(transmitter.allowsGlucoseAlarms, transmitter.rawValue)
         }

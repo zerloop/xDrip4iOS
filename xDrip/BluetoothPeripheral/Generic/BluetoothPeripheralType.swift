@@ -44,6 +44,10 @@ enum BluetoothPeripheralType: String, CaseIterable {
     /// Keep this raw value stable because it is persisted with Bluetooth peripheral records.
     case SibionicsGS1Type = "Sibionics GS1"
 
+    /// Instara G1, passive co-listener next to the official Instara app (experimental).
+    /// Keep this raw value stable because it is persisted with Bluetooth peripheral records.
+    case InstaraG1Type = "Instara G1"
+
     func createNewBluetoothPeripheral(withAddress address: String, withName name: String, nsManagedObjectContext: NSManagedObjectContext) -> BluetoothPeripheral {
         
         switch self {
@@ -92,6 +96,9 @@ enum BluetoothPeripheralType: String, CaseIterable {
         case .SibionicsGS1Type:
             return SibionicsGS1(address: address, name: name, alias: nil, nsManagedObjectContext: nsManagedObjectContext)
 
+        case .InstaraG1Type:
+            return InstaraG1(address: address, name: name, alias: nil, nsManagedObjectContext: nsManagedObjectContext)
+
         }
 
     }
@@ -104,7 +111,7 @@ enum BluetoothPeripheralType: String, CaseIterable {
         case .M5StackType, .M5StickCType:
             return .M5Stack
             
-        case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type:
+        case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type, .InstaraG1Type:
             return .CGM
 
         case .Libre3HeartBeatType, .DexcomG7HeartBeatType, .OmniPodHeartBeatType:

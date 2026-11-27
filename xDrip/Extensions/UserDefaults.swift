@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import ActivityKit
+import os
 
 /// Controls how native automatic-basal insulin deliveries are presented on glucose charts.
 enum AutomaticBasalRenderingStyle: Int, CaseIterable {
@@ -427,6 +428,8 @@ extension UserDefaults {
         case lockScreenDontShowAgain = "lockScreenDontShowAgain"
         /// the user acknowledged the one-time experimental warning before adding a Sibionics GS1
         case sibionicsGS1ExperimentalWarningAcknowledged = "sibionicsGS1ExperimentalWarningAcknowledged"
+        /// the user acknowledged the one-time experimental warning before adding an Instara G1
+        case instaraG1ExperimentalWarningAcknowledged = "instaraG1ExperimentalWarningAcknowledged"
 
         // M5Stack
 
@@ -540,6 +543,13 @@ extension UserDefaults {
         /// end of the period in which a source without glucose export (Sibionics GS1) was active. No export path
         /// may look back before it, see advanceGlucoseExportCursors
         case glucoseExportFloorTimeStamp = "glucoseExportFloorTimeStamp"
+
+        /// the user verified the Instara G1 values against the official app; only then are they exported,
+        /// shared with OS-AID and used for glucose alarms. Written only by setInstaraG1Verified.
+        /// The raw value must equal the property name for KVO on UserDefaults to work.
+        case instaraG1ExportVerified = "instaraG1ExportVerified"
+        /// sensor start of the Instara G1 sensor the verification belongs to
+        case instaraG1VerifiedSensorStart = "instaraG1VerifiedSensorStart"
 
         // Trace
         /// should debug level logs be added in trace file or not, and also in NSLog
@@ -2567,6 +2577,16 @@ extension UserDefaults {
         }
     }
 
+    /// did the user acknowledge the one-time Instara G1 experimental warning?
+    var instaraG1ExperimentalWarningAcknowledged: Bool {
+        get {
+            return bool(forKey: Key.instaraG1ExperimentalWarningAcknowledged.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.instaraG1ExperimentalWarningAcknowledged.rawValue)
+        }
+    }
+
     // MARK: - M5Stack
 
     /// M5StackBlePassword, used for authenticating xdrip app towards M5Stack
@@ -3059,6 +3079,50 @@ extension UserDefaults {
             glucoseExportFloorTimeStamp = date
         }
     }
+
+    /// see Key.instaraG1ExportVerified. KVO observable. Read only: setInstaraG1Verified is the only writer.
+    @objc dynamic var instaraG1ExportVerified: Bool {
+        return bool(forKey: Key.instaraG1ExportVerified.rawValue)
+    }
+
+    /// see Key.instaraG1VerifiedSensorStart. Read only: setInstaraG1Verified is the only writer.
+    var instaraG1VerifiedSensorStart: Date? {
+        return object(forKey: Key.instaraG1VerifiedSensorStart.rawValue) as? Date
+    }
+
+    /// The only code path that changes the Instara G1 verification.
+    /// - on: true when the user verified the values against the official app
+    /// - sensorStart: sensor start of the verified sensor, stored with the verification; cleared when turned off
+    /// - reason: why the verification changes (user, new sensor, device deleted), written to the trace
+    ///
+    /// Off to on advances all glucose export cursors to now: readings stored while unverified are never exported.
+    func setInstaraG1Verified(_ on: Bool, sensorStart: Date?, reason: String) {
+        let wasOn = instaraG1ExportVerified
+
+        if on && !wasOn {
+            // before the flag flips, so no export path can see the backlog as exportable
+            advanceGlucoseExportCursors(to: Date())
+        }
+
+        if on {
+            if let sensorStart = sensorStart {
+                set(sensorStart, forKey: Key.instaraG1VerifiedSensorStart.rawValue)
+            } else {
+                removeObject(forKey: Key.instaraG1VerifiedSensorStart.rawValue)
+            }
+        } else {
+            removeObject(forKey: Key.instaraG1VerifiedSensorStart.rawValue)
+        }
+
+        if on != wasOn {
+            set(on, forKey: Key.instaraG1ExportVerified.rawValue)
+        }
+
+        let sensorStartText = on ? (sensorStart.map { ISO8601DateFormatter().string(from: $0) } ?? "nil") : "nil"
+        trace("INSTARA-VERIFY %{public}@ reason=%{public}@ sensorStart=%{public}@ previous=%{public}@", log: Self.instaraG1Log, category: ConstantsLog.categoryCGMInstaraG1, type: .info, on ? "on" : "off", reason, sensorStartText, wasOn ? "on" : "off")
+    }
+
+    private static let instaraG1Log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryCGMInstaraG1)
 
     /// to be called before isMaster or the transmitter type changes: when the current active source does not allow
     /// glucose export and the new one does (other type, no type, or follower mode), its backlog must stay unexported

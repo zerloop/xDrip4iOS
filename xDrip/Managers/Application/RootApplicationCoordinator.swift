@@ -2027,6 +2027,10 @@ import AppIntents
             // Sibionics GS1 raw values are calibrated with the Libre 1 fixed slope calibrator
             calibrator = Libre1Calibrator()
 
+        case .instaraG1:
+            // Instara G1 sends mmol/L values computed by the sensor, xDrip does not calibrate them
+            calibrator = NoCalibrator()
+
         }
         
         trace("in getCalibrator, calibrator = %{public}@", log: log, category: ConstantsLog.categoryRootView, type: .info, calibrator.description())

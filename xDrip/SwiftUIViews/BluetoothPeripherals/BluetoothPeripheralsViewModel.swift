@@ -285,7 +285,8 @@ struct DexcomManualSensorCodeEntry {
     }
 
     func bluetoothPeripheralTypes(for category: BluetoothPeripheralCategory) -> [BluetoothPeripheralType] {
-        let categoryTypes = BluetoothPeripheralType.allCases.filter { $0.category() == category }
+        // Task 4: InstaraG1Type stays out of the add flow until its transmitter exists
+        let categoryTypes = BluetoothPeripheralType.allCases.filter { $0.category() == category && $0 != .InstaraG1Type }
 
         guard let preferredOrder = BluetoothPeripheralType.addFlowPreferredOrder[category] else {
             return categoryTypes
@@ -594,6 +595,8 @@ extension BluetoothPeripheralType {
             return "Medtrum Nano Pump"
         case .SibionicsGS1Type:
             return "Sibionics GS1 (Deneysel, resmi uygulamayla)"
+        case .InstaraG1Type:
+            return "Instara-1 / Perlanova (Deneysel, resmi uygulamayla)"
         default:
             return rawValue
         }

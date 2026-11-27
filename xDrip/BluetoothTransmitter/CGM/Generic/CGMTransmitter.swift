@@ -202,12 +202,19 @@ enum CGMTransmitterType:String, CaseIterable {
     /// Keep this raw value stable because it is persisted in UserDefaults.
     case sibionicsGS1 = "Sibionics GS1"
 
+    /// Instara G1, passive co-listener next to the official Instara app (experimental).
+    /// Keep this raw value stable because it is persisted in UserDefaults.
+    case instaraG1 = "Instara G1"
+
     /// Direct Medtrum Nano glucose is already consumed by the connected pump and must not be
     /// exported as an independent CGM source to another OS-AID system.
     var osAidSharingPolicy: OSAidSharingPolicy {
         switch self {
         case .medtrumTouchCareNano, .sibionicsGS1:
             return .blocked
+        case .instaraG1:
+            // unverified Instara values never reach an OS-AID system, see UserDefaults.setInstaraG1Verified
+            return UserDefaults.standard.instaraG1ExportVerified ? .allowed : .blocked
         default:
             return .allowed
         }
@@ -219,6 +226,9 @@ enum CGMTransmitterType:String, CaseIterable {
         switch self {
         case .sibionicsGS1:
             return false
+        case .instaraG1:
+            // export only after the user verified the values against the official app
+            return UserDefaults.standard.instaraG1ExportVerified
         default:
             return true
         }
@@ -229,6 +239,9 @@ enum CGMTransmitterType:String, CaseIterable {
         switch self {
         case .sibionicsGS1:
             return false
+        case .instaraG1:
+            // glucose value alarms only after the user verified the values against the official app
+            return UserDefaults.standard.instaraG1ExportVerified
         default:
             return true
         }
@@ -250,6 +263,9 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .sibionicsGS1:
             return .Sibionics
+
+        case .instaraG1:
+            return .Instara
 
         }
         
@@ -288,6 +304,10 @@ enum CGMTransmitterType:String, CaseIterable {
             // the official app owns the sensor lifecycle; a new session is inferred from the packets.
             return true
 
+        case .instaraG1:
+            // the official app owns the sensor lifecycle; a new sensor is inferred from the sequence numbers.
+            return true
+
         }
     }
     
@@ -313,6 +333,10 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .sibionicsGS1:
             // the official Sibionics app owns sensor lifecycle.
+            return false
+
+        case .instaraG1:
+            // the official Instara app owns sensor lifecycle.
             return false
 
         }
@@ -345,6 +369,10 @@ enum CGMTransmitterType:String, CaseIterable {
             // no battery surface; reuse the generic threshold like Medtrum.
             return ConstantsDefaultAlertLevels.defaultBatteryAlertLevelLibre2
 
+        case .instaraG1:
+            // battery percentage is shown on the device screen only; reuse the generic threshold.
+            return ConstantsDefaultAlertLevels.defaultBatteryAlertLevelLibre2
+
         }
     }
     
@@ -371,6 +399,9 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .medtrumTouchCareNano, .sibionicsGS1:
             return ""
+
+        case .instaraG1:
+            return "%"
 
         }
     }
@@ -438,6 +469,9 @@ enum CGMTransmitterType:String, CaseIterable {
 
         case .sibionicsGS1:
             return "Sibionics GS1 (experimental, passive)"
+
+        case .instaraG1:
+            return "Instara G1 (experimental, passive)"
             
         default:
             return self.rawValue

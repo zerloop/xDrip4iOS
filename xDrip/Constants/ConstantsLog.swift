@@ -109,6 +109,9 @@ enum ConstantsLog {
     /// sibionics gs1 cgm (passive BLE co-listener next to the official app)
     static let categoryCGMSibionicsGS1 = "CGMSibionicsGS1"
 
+    /// instara g1 cgm (passive BLE co-listener next to the official app)
+    static let categoryCGMInstaraG1 = "CGMInstaraG1"
+
     /// alertmanager
     static let categoryAlertManager =                       "AlertManager                  "
     

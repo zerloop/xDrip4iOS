@@ -108,7 +108,8 @@ final class FollowerSettingsTests: XCTestCase {
         XCTAssertEqual(CGMTransmitterType.medtrumTouchCareNano.osAidSharingPolicy, .blocked)
         XCTAssertEqual(FollowerDataSourceType.medtrumEasyView.osAidSharingPolicy, .requiresExplicitConsent)
 
-        for transmitter in CGMTransmitterType.allCases where ![.medtrumTouchCareNano, .sibionicsGS1].contains(transmitter) {
+        // instaraG1 depends on the user's verification, see InstaraG1TypePolicyTests
+        for transmitter in CGMTransmitterType.allCases where ![.medtrumTouchCareNano, .sibionicsGS1, .instaraG1].contains(transmitter) {
             XCTAssertEqual(transmitter.osAidSharingPolicy, .allowed)
         }
 

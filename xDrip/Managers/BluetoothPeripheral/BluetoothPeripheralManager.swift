@@ -174,7 +174,7 @@ class BluetoothPeripheralManager: NSObject {
                         _ = m5StackBluetoothTransmitter.writeBgReadingInfo(bgReading: bgReadingToSend[0])
                     }
                     
-                case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type:
+                case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type, .InstaraG1Type:
                     // cgm's don't receive reading, they send it
                     break
                     
@@ -431,6 +431,11 @@ class BluetoothPeripheralManager: NSObject {
                         }
                     }
 
+                case .InstaraG1Type:
+
+                    // Task 4: the Instara G1 transmitter is not available yet, no transmitter is created
+                    trace("in getBluetoothTransmitter, case InstaraG1Type, transmitter not yet supported, returning nil", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+
                 }
                 
                 
@@ -519,6 +524,10 @@ class BluetoothPeripheralManager: NSObject {
                 if bluetoothTransmitter is CGMSibionicsGS1Transmitter {
                     return .SibionicsGS1Type
                 }
+
+            case .InstaraG1Type:
+                // Task 4: no Instara G1 transmitter class exists yet, so no transmitter can match this type
+                break
                 
             }
             
@@ -621,6 +630,12 @@ class BluetoothPeripheralManager: NSObject {
             }
 
             return CGMSibionicsGS1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+
+        case .InstaraG1Type:
+
+            // Task 4: the Instara G1 transmitter is not available yet. Unreachable, because InstaraG1Type is
+            // hidden from the add flow (BluetoothPeripheralsViewModel.bluetoothPeripheralTypes) until Task 4.
+            fatalError("in createNewTransmitter, InstaraG1Type, transmitter not yet supported")
             
         }
         
@@ -1120,6 +1135,23 @@ class BluetoothPeripheralManager: NSObject {
 
                     }
 
+                case .InstaraG1Type:
+
+                    if let instaraG1 = blePeripheral.instaraG1 {
+
+                        blePeripheralFound = true
+
+                        let index = insertInBluetoothPeripherals(bluetoothPeripheral: instaraG1)
+
+                        if instaraG1.blePeripheral.shouldconnect {
+                            trace("in init, InstaraG1Type, transmitter not yet supported, no transmitter created", log: log, category: ConstantsLog.categoryBluetoothPeripheralManager, type: .error)
+                        }
+
+                        // Task 4: the Instara G1 transmitter is not available yet, keep an empty row for it
+                        bluetoothTransmitters.insert(nil, at: index)
+
+                    }
+
                 }
 
             }
@@ -1239,7 +1271,7 @@ class BluetoothPeripheralManager: NSObject {
                     bluetoothPeripheral.blePeripheral.parameterUpdateNeededAtNextConnect = true
                 }
              
-            case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .Libre3HeartBeatType, .DexcomG7HeartBeatType, .OmniPodHeartBeatType, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type:
+            case .DexcomType, .BubbleType, .MiaoMiaoType, .Libre2Type, .Libre3Type, .Libre3HeartBeatType, .DexcomG7HeartBeatType, .OmniPodHeartBeatType, .DexcomG7Type, .MedtrumTouchCareNanoType, .SibionicsGS1Type, .InstaraG1Type:
 
                 // nothing to check
                 break

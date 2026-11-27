@@ -678,6 +678,9 @@ final class BluetoothPeripheralDetailState: NSObject, ObservableObject {
             return makeMedtrumTouchCareNanoSections(bluetoothPeripheral: bluetoothPeripheral)
         case .SibionicsGS1Type:
             return makeSibionicsGS1Sections(bluetoothPeripheral: bluetoothPeripheral)
+        case .InstaraG1Type:
+            // Task 5: Instara G1 specific sections are added together with the transmitter UI
+            return []
         case .M5StackType:
             return makeM5StackSections(bluetoothPeripheral: bluetoothPeripheral, includesSpecificM5StackSection: true)
         case .M5StickCType:

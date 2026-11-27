@@ -1372,6 +1372,9 @@ class BgPostProcessingManager {
             return .masterSibionicsGS1UsesCalibration
         case .dexcomG7, .Libre3, .medtrumTouchCareNano:
             return nil
+        case .instaraG1:
+            // no calibration for Instara G1, so the Sibionics exception does not apply
+            return nil
         }
     }
 
@@ -1413,6 +1416,8 @@ class BgPostProcessingManager {
             return connectedCGMPeripherals.first { $0.medtrumTouchCareNano != nil }
         case .sibionicsGS1:
             return connectedCGMPeripherals.first { $0.sibionicsGS1 != nil }
+        case .instaraG1:
+            return connectedCGMPeripherals.first { $0.instaraG1 != nil }
         case nil:
             return nil
         }

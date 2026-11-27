@@ -10,6 +10,10 @@
 		4D9100022FE8000100000001 /* InstaraG1Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9100012FE8000100000001 /* InstaraG1Protocol.swift */; };
 		4D9100042FE8000100000001 /* ConstantsInstaraG1.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9100032FE8000100000001 /* ConstantsInstaraG1.swift */; };
 		4D9100062FE8000100000001 /* InstaraG1ProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9100052FE8000100000001 /* InstaraG1ProtocolTests.swift */; };
+		4D9101022FE8000100000001 /* InstaraG1TypePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9101012FE8000100000001 /* InstaraG1TypePolicyTests.swift */; };
+		4D9101042FE8000100000001 /* InstaraG1+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9101032FE8000100000001 /* InstaraG1+CoreDataClass.swift */; };
+		4D9101062FE8000100000001 /* InstaraG1+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9101052FE8000100000001 /* InstaraG1+CoreDataProperties.swift */; };
+		4D9101082FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9101072FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift */; };
 		4D8101042FE8000100000001 /* SibionicsGS1+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101032FE8000100000001 /* SibionicsGS1+CoreDataClass.swift */; };
 		4D8101062FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101052FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift */; };
 		4D8101082FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8101072FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift */; };
@@ -1019,6 +1023,11 @@
 		4D9100012FE8000100000001 /* InstaraG1Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstaraG1Protocol.swift; sourceTree = "<group>"; };
 		4D9100032FE8000100000001 /* ConstantsInstaraG1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstantsInstaraG1.swift; sourceTree = "<group>"; };
 		4D9100052FE8000100000001 /* InstaraG1ProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstaraG1ProtocolTests.swift; sourceTree = "<group>"; };
+		4D9101012FE8000100000001 /* InstaraG1TypePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstaraG1TypePolicyTests.swift; sourceTree = "<group>"; };
+		4D9101032FE8000100000001 /* InstaraG1+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InstaraG1+CoreDataClass.swift"; sourceTree = "<group>"; };
+		4D9101052FE8000100000001 /* InstaraG1+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InstaraG1+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		4D9101072FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InstaraG1+BluetoothPeripheral.swift"; sourceTree = "<group>"; };
+		4D9101092FE8000100000001 /* xdrip v39.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "xdrip v39.xcdatamodel"; sourceTree = "<group>"; };
 		4D8101032FE8000100000001 /* SibionicsGS1+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SibionicsGS1+CoreDataClass.swift"; sourceTree = "<group>"; };
 		4D8101052FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SibionicsGS1+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		4D8101072FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SibionicsGS1+BluetoothPeripheral.swift"; sourceTree = "<group>"; };
@@ -2319,6 +2328,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4D91010A2FE8000100000001 /* Instara */ = {
+			isa = PBXGroup;
+			children = (
+				4D91010B2FE8000100000001 /* G1 */,
+			);
+			path = Instara;
+			sourceTree = "<group>";
+		};
+		4D91010B2FE8000100000001 /* G1 */ = {
+			isa = PBXGroup;
+			children = (
+				4D9101072FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift */,
+			);
+			path = G1;
+			sourceTree = "<group>";
+		};
 		4D9100072FE8000100000001 /* Instara */ = {
 			isa = PBXGroup;
 			children = (
@@ -2922,6 +2947,7 @@
 				BA0709260000000000000002 /* BasalInjectionTests.swift */,
 				4D8100052FE8000100000001 /* SibionicsGS1ProtocolTests.swift */,
 				4D9100052FE8000100000001 /* InstaraG1ProtocolTests.swift */,
+				4D9101012FE8000100000001 /* InstaraG1TypePolicyTests.swift */,
 				4D8101012FE8000100000001 /* SibionicsGS1TypePolicyTests.swift */,
 				4D8102032FE8000100000001 /* SibionicsGS1SessionTests.swift */,
 				4D8103032FE8000100000001 /* CGMSibionicsGS1TransmitterTests.swift */,
@@ -3879,6 +3905,8 @@
 				4D71800A2FE8000100000001 /* MedtrumTouchCareNano+CoreDataProperties.swift */,
 				4D8101032FE8000100000001 /* SibionicsGS1+CoreDataClass.swift */,
 				4D8101052FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift */,
+				4D9101032FE8000100000001 /* InstaraG1+CoreDataClass.swift */,
+				4D9101052FE8000100000001 /* InstaraG1+CoreDataProperties.swift */,
 				F8C97851242AA70C00A09483 /* MiaoMiao+CoreDataClass.swift */,
 				F8C97852242AA70C00A09483 /* MiaoMiao+CoreDataProperties.swift */,
 				4F2400113001000100000001 /* NightscoutDeviceStatusEntry+CoreDataClass.swift */,
@@ -4025,6 +4053,7 @@
 			isa = PBXGroup;
 			children = (
 				F8DF765923E350B100063910 /* Dexcom */,
+				4D91010A2FE8000100000001 /* Instara */,
 				F808D2CF240329D40084B5DB /* Libre */,
 				4D7180102FE8000100000001 /* Medtrum */,
 				4D81010A2FE8000100000001 /* Sibionics */,
@@ -4904,6 +4933,7 @@
 				BA0709260000000000000001 /* BasalInjectionTests.swift in Sources */,
 				4D8100062FE8000100000001 /* SibionicsGS1ProtocolTests.swift in Sources */,
 				4D9100062FE8000100000001 /* InstaraG1ProtocolTests.swift in Sources */,
+				4D9101022FE8000100000001 /* InstaraG1TypePolicyTests.swift in Sources */,
 				4D8101022FE8000100000001 /* SibionicsGS1TypePolicyTests.swift in Sources */,
 				4D8102042FE8000100000001 /* SibionicsGS1SessionTests.swift in Sources */,
 				4D8103042FE8000100000001 /* CGMSibionicsGS1TransmitterTests.swift in Sources */,
@@ -4980,6 +5010,7 @@
 				F8F71D862B7EC1AD005076E8 /* DexcomG7+BluetoothPeripheral.swift in Sources */,
 				4D7180012FE8000100000001 /* MedtrumTouchCareNano+BluetoothPeripheral.swift in Sources */,
 				4D8101082FE8000100000001 /* SibionicsGS1+BluetoothPeripheral.swift in Sources */,
+				4D9101082FE8000100000001 /* InstaraG1+BluetoothPeripheral.swift in Sources */,
 				47046EA42A6E8BA700A6F736 /* TextsBgReadings.swift in Sources */,
 				F8E0475E28CC8E330049D8C9 /* GlucoseData+LoopShare.swift in Sources */,
 				476698662BE2572C008EB2A9 /* ConstantsSettingsIcons.swift in Sources */,
@@ -5091,6 +5122,7 @@
 				F8A1587122EDC865007F5B5D /* ConstantsSpeakReadingLanguages.swift in Sources */,
 				4D7180072FE8000100000001 /* MedtrumTouchCareNano+CoreDataClass.swift in Sources */,
 				4D8101042FE8000100000001 /* SibionicsGS1+CoreDataClass.swift in Sources */,
+				4D9101042FE8000100000001 /* InstaraG1+CoreDataClass.swift in Sources */,
 				F8A1585522EDB706007F5B5D /* ConstantsCalibrationAlgorithms.swift in Sources */,
 				4752B4062635878E0081D551 /* SettingsViewStatisticsSettingsViewModel.swift in Sources */,
 				F897AAF92200F2D200CDDD10 /* CBPeripheralState.swift in Sources */,
@@ -5116,6 +5148,7 @@
 				F8F71D812B7EAA2E005076E8 /* DexcomG7+CoreDataProperties.swift in Sources */,
 				4D7180092FE8000100000001 /* MedtrumTouchCareNano+CoreDataProperties.swift in Sources */,
 				4D8101062FE8000100000001 /* SibionicsGS1+CoreDataProperties.swift in Sources */,
+				4D9101062FE8000100000001 /* InstaraG1+CoreDataProperties.swift in Sources */,
 				F8B3A81D227DEC92004BA588 /* CalibrationsAccessor.swift in Sources */,
 				F821CF9D22AEF483005C1E43 /* BGReadingSpeaker.swift in Sources */,
 				F8B3A848227F090E004BA588 /* SettingsViewHealthKitSettingsViewModel.swift in Sources */,
@@ -6706,6 +6739,7 @@
 				D17EC7360000000000000001 /* xdrip v36.xcdatamodel */,
 				D17EC7370000000000000001 /* xdrip v37.xcdatamodel */,
 				4D8101092FE8000100000001 /* xdrip v38.xcdatamodel */,
+				4D9101092FE8000100000001 /* xdrip v39.xcdatamodel */,
 				D17EC7340000000000000001 /* xdrip v34.xcdatamodel */,
 				4F3300313009000100000001 /* xdrip v33 Watch.xcdatamodel */,
 				4F3200313008000100000001 /* xdrip v32.xcdatamodel */,
@@ -6731,7 +6765,7 @@
 				F85FF3C3252D0C32004E6FF1 /* xdrip v12.xcdatamodel */,
 				F7936B31E35D82919DCDE294 /* xdrip v33.xcdatamodel */,
 			);
-			currentVersion = 4D8101092FE8000100000001 /* xdrip v38.xcdatamodel */;
+			currentVersion = 4D9101092FE8000100000001 /* xdrip v39.xcdatamodel */;
 			path = xdrip.xcdatamodeld;
 			sourceTree = "<group>";
 			versionGroupType = wrapper.xcdatamodel;

@@ -775,6 +775,15 @@ class Trace {
                                 traceInfo.appendStringAndNewLine("        Firmware: " + firmware)
                             }
                         }
+
+                    case .InstaraG1Type:
+                        if let instaraG1 = blePeripheral.instaraG1 {
+
+                            traceInfo.appendStringAndNewLine("        Type: " + bluetoothPeripheralType.rawValue)
+                            if let firmware = instaraG1.firmware {
+                                traceInfo.appendStringAndNewLine("        Firmware: " + firmware)
+                            }
+                        }
                     }
                 }
                 

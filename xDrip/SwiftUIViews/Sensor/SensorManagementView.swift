@@ -591,6 +591,8 @@ struct SensorManagementView: View {
             warmupMinutes = nil
         case .Sibionics:
             warmupMinutes = ConstantsSibionicsGS1.warmupMinutes
+        case .Instara:
+            warmupMinutes = ConstantsInstaraG1.warmupMinutes
         case .none:
             warmupMinutes = nil
         }
