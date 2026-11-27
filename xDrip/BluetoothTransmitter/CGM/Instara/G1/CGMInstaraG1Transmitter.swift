@@ -148,6 +148,12 @@ private final class InstaraG1BackgroundTask {
     }
 }
 
+/// receives device information that is stored on the InstaraG1 Core Data object
+protocol CGMInstaraG1TransmitterDelegate: AnyObject {
+    /// hardware / software version from the handshake (0xF0), called on the main thread when it changes
+    func received(firmware: String, from cGMInstaraG1Transmitter: CGMInstaraG1Transmitter)
+}
+
 /// Passive co-listener for the Instara G1 CGM.
 ///
 /// The official Instara app owns the BLE session with the sensor. xDrip retrieves the peripheral that
@@ -195,6 +201,9 @@ class CGMInstaraG1Transmitter: BluetoothTransmitter, CGMTransmitter {
     private let watchdogTickInterval: TimeInterval = 60
 
     private(set) weak var cgmTransmitterDelegate: CGMTransmitterDelegate?
+
+    /// stores the handshake firmware on the Core Data object, set by BluetoothPeripheralManager
+    weak var cGMInstaraG1TransmitterDelegate: CGMInstaraG1TransmitterDelegate?
 
     private let log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryCGMInstaraG1)
 
@@ -801,9 +810,18 @@ class CGMInstaraG1Transmitter: BluetoothTransmitter, CGMTransmitter {
             }
 
         case .handshake(let hardware, let software):
+            let firmware = "HW \(hardware) / SW \(software)"
+            var changed = false
             updateDiagnostics {
-                $0.firmware = "HW \(hardware) / SW \(software)"
+                changed = $0.firmware != firmware
+                $0.firmware = firmware
                 $0.lastPacketDate = now
+            }
+            if changed {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.cGMInstaraG1TransmitterDelegate?.received(firmware: firmware, from: self)
+                }
             }
 
         case .historyHeader:

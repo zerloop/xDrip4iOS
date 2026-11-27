@@ -208,6 +208,17 @@
 "instaraG1StatusReceiving" = "Glikoz verisi alınıyor.";
 "instaraG1StatusResubscribed" = "Bir süredir veri gelmedi, abonelik yenilendi.";
 "instaraG1StatusReleased" = "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.";
+"instaraG1ExperimentalWarningTitle" = "Instara-1 (Deneysel)";
+"instaraG1ExperimentalWarning" = "Instara-1 desteği deneyseldir. xDrip resmi Instara uygulamasının bağlantısını dinler; resmi uygulama açık ve sensöre bağlı kalmalıdır. Değerleri resmi uygulamayla karşılaştırıp doğrulayana kadar Loop, paylaşım ve glikoz alarmları kapalıdır.";
+"instaraG1ConnectionStatus" = "Bağlantı durumu";
+"instaraG1Firmware" = "Firmware";
+"instaraG1Battery" = "Pil";
+"instaraG1LastSequence" = "Son sıra no";
+"instaraG1LastRawValue" = "Son ham değer (mmol/L)";
+"instaraG1ReadingInterval" = "Okuma aralığı";
+"instaraG1ReadingIntervalMinutes" = "%d dk";
+"instaraG1LastPacketTime" = "Son paket zamanı";
+"instaraG1UnknownInvalidPacketCount" = "Bilinmeyen/geçersiz paket";
 "sibionicsGS1ConnectionStatus" = "Bağlantı durumu";
 "sibionicsGS1Firmware" = "Firmware";
 "sibionicsGS1FirmwareLegacy" = "Eski";

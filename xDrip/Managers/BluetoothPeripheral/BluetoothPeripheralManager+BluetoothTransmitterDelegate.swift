@@ -316,6 +316,12 @@ extension BluetoothPeripheralManager: BluetoothTransmitterDelegate {
         
         // add new bluetoothPeripheral and bluetoothTransmitter to array of bluetoothPeripherals and bluetoothTransmitters
         bluetoothTransmitters.insert(bluetoothTransmitter, at: insertInBluetoothPeripherals(bluetoothPeripheral: newBluetoothPeripheral))
+
+        // the handshake can arrive before the device is saved, keep its firmware on the new Core Data object
+        if let instaraG1Transmitter = bluetoothTransmitter as? CGMInstaraG1Transmitter, let instaraG1 = newBluetoothPeripheral as? InstaraG1, let firmware = instaraG1Transmitter.diagnostics.firmware {
+            instaraG1.firmware = firmware
+            coreDataManager.saveChanges()
+        }
         
         if bluetoothTransmitter is CGMLibre3Transmitter || bluetoothTransmitter is CGMSibionicsGS1Transmitter || bluetoothTransmitter is CGMInstaraG1Transmitter {
             // The saved device now owns this transmitter. Detail-screen scan cleanup must not
@@ -436,6 +442,23 @@ extension BluetoothPeripheralManager: BluetoothTransmitterDelegate {
         if let heartBeatFunction = heartBeatFunction {
             heartBeatFunction()
         }
+    }
+
+}
+
+extension BluetoothPeripheralManager: CGMInstaraG1TransmitterDelegate {
+
+    func received(firmware: String, from cGMInstaraG1Transmitter: CGMInstaraG1Transmitter) {
+
+        guard let index = bluetoothTransmitters.firstIndex(of: cGMInstaraG1Transmitter),
+              bluetoothPeripherals.indices.contains(index),
+              let instaraG1 = bluetoothPeripherals[index] as? InstaraG1 else { return }
+
+        // store firmware in the instaraG1 object
+        instaraG1.firmware = firmware
+
+        coreDataManager.saveChanges()
+
     }
 
 }

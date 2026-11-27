@@ -610,7 +610,8 @@ extension BluetoothPeripheralType {
             .MiaoMiaoType,
             .BubbleType,
             .MedtrumTouchCareNanoType,
-            .SibionicsGS1Type
+            .SibionicsGS1Type,
+            .InstaraG1Type
         ]
     ]
 }

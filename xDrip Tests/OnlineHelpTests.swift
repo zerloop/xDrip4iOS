@@ -164,10 +164,16 @@ final class OnlineHelpTests: XCTestCase {
         XCTAssertEqual(BluetoothPeripheralType.OmniPodHeartBeatType.onlineHelpTopic, .followerHeartbeat)
         XCTAssertEqual(BluetoothPeripheralType.MedtrumTouchCareNanoType.onlineHelpTopic, .medtrumNano)
         XCTAssertEqual(BluetoothPeripheralType.SibionicsGS1Type.onlineHelpTopic, .addDirectCGM)
+        XCTAssertEqual(BluetoothPeripheralType.InstaraG1Type.onlineHelpTopic, .addDirectCGM)
     }
 
     func testSibionicsGS1HelpTopicResolvesToANonEmptyURL() {
         let url = OnlineHelp.url(for: BluetoothPeripheralType.SibionicsGS1Type.onlineHelpTopic, languageIdentifier: "en", translate: true)
+        XCTAssertFalse(url?.absoluteString.isEmpty ?? true)
+    }
+
+    func testInstaraG1HelpTopicResolvesToANonEmptyURL() {
+        let url = OnlineHelp.url(for: BluetoothPeripheralType.InstaraG1Type.onlineHelpTopic, languageIdentifier: "en", translate: true)
         XCTAssertFalse(url?.absoluteString.isEmpty ?? true)
     }
 

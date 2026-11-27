@@ -176,6 +176,7 @@ final class BluetoothPeripheralDisplayStatusTests: XCTestCase {
         XCTAssertFalse(BluetoothPeripheralType.OmniPodHeartBeatType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.MedtrumTouchCareNanoType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.SibionicsGS1Type.usesIntermittentConnection)
+        XCTAssertFalse(BluetoothPeripheralType.InstaraG1Type.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.M5StackType.usesIntermittentConnection)
         XCTAssertFalse(BluetoothPeripheralType.M5StickCType.usesIntermittentConnection)
     }
@@ -441,5 +442,173 @@ final class SibionicsGS1WiringTests: XCTestCase {
         XCTAssertNil(rows[4].detail)
         XCTAssertNil(rows[5].detail)
         XCTAssertEqual(rows[6].detail, "0")
+    }
+}
+
+/// App-wide wiring of the passive Instara G1 co-listener: manager, add flow, warning, diagnostics and Loop interval.
+final class InstaraG1WiringTests: XCTestCase {
+
+    /// the manager holds its CGM delegate weakly
+    private let cgmDelegate = ConnectionStatusCGMDelegateStub()
+
+    private func makeManager(_ coreDataManager: CoreDataManager) -> BluetoothPeripheralManager {
+        BluetoothPeripheralManager(
+            coreDataManager: coreDataManager,
+            cgmTransmitterDelegate: cgmDelegate,
+            messageHandler: { _, _ in },
+            heartBeatFunction: nil,
+            cgmTransmitterInfoChanged: {}
+        )
+    }
+
+    private func makeDefaults() throws -> (UserDefaults, String) {
+        let suite = "InstaraG1WiringTests." + UUID().uuidString
+        return (try XCTUnwrap(UserDefaults(suiteName: suite)), suite)
+    }
+
+    func testAddFlowCreatesThePassiveInstaraTransmitter() {
+        let manager = makeManager(CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName))
+
+        let transmitter = manager.createNewTransmitter(type: .InstaraG1Type, transmitterId: nil, dexcomG6BluetoothSlot: .defaultSlot, bluetoothTransmitterDelegate: nil)
+        defer { transmitter.prepareForRelease() }
+
+        XCTAssertTrue(transmitter is CGMInstaraG1Transmitter)
+        XCTAssertEqual(manager.getTransmitterType(for: transmitter), .InstaraG1Type)
+    }
+
+    func testHandshakeFirmwareIsSavedOnTheCoreDataObject() throws {
+        let coreDataManager = CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName)
+        let g1 = InstaraG1(address: "test-g1", name: "Instara", alias: nil, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+        // disabled, so loading it does not select it as the app's CGM source
+        g1.blePeripheral.shouldconnect = false
+        coreDataManager.saveChanges()
+
+        let manager = makeManager(coreDataManager)
+        let transmitter = try XCTUnwrap(manager.getBluetoothTransmitter(for: g1, createANewOneIfNecesssary: true) as? CGMInstaraG1Transmitter)
+        defer { transmitter.prepareForRelease() }
+
+        manager.received(firmware: "HW 1.0 / SW 2.3", from: transmitter)
+
+        XCTAssertEqual(g1.firmware, "HW 1.0 / SW 2.3")
+    }
+
+    func testRemovingTheDeviceTurnsTheVerificationOff() throws {
+        let coreDataManager = CoreDataManager(inMemoryModelName: ConstantsCoreData.modelName)
+        let g1 = InstaraG1(address: "test-g1-remove", name: "Instara", alias: nil, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+        g1.blePeripheral.shouldconnect = false
+        coreDataManager.saveChanges()
+        let manager = makeManager(coreDataManager)
+
+        let wasVerified = UserDefaults.standard.instaraG1ExportVerified
+        let previousSensorStart = UserDefaults.standard.instaraG1VerifiedSensorStart
+        defer { UserDefaults.standard.setInstaraG1Verified(wasVerified, sensorStart: previousSensorStart, reason: "test-restore") }
+        UserDefaults.standard.setInstaraG1Verified(true, sensorStart: Date(timeIntervalSince1970: 1_800_000_000), reason: "test")
+        XCTAssertTrue(UserDefaults.standard.instaraG1ExportVerified)
+
+        manager.deleteBluetoothPeripheral(bluetoothPeripheral: g1)
+
+        XCTAssertFalse(UserDefaults.standard.instaraG1ExportVerified)
+        XCTAssertNil(UserDefaults.standard.instaraG1VerifiedSensorStart)
+    }
+
+    func testAddFlowKeepsWaitingForTheOfficialAppConnection() {
+        for result: BluetoothTransmitter.startScanningResult in [.alreadyScanning, .connecting] {
+            XCTAssertTrue(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .InstaraG1Type, scanningResult: result))
+        }
+        XCTAssertFalse(BluetoothPeripheralDetailState.keepsWaitingForNewPeripheral(type: .InstaraG1Type, scanningResult: .poweredOff))
+    }
+
+    func testAddFlowFooterAsksToOpenTheOfficialApp() {
+        XCTAssertEqual(
+            BluetoothPeripheralDetailState.instaraG1AddFlowFooter(type: .InstaraG1Type, hasPeripheral: false, isWaiting: true),
+            "Resmi Instara uygulamasını açın ve sensörün bağlı olduğundan emin olun."
+        )
+        XCTAssertNil(BluetoothPeripheralDetailState.instaraG1AddFlowFooter(type: .InstaraG1Type, hasPeripheral: true, isWaiting: false))
+        XCTAssertNil(BluetoothPeripheralDetailState.instaraG1AddFlowFooter(type: .SibionicsGS1Type, hasPeripheral: false, isWaiting: true))
+        // the Sibionics footer stays Sibionics only
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1AddFlowFooter(type: .InstaraG1Type, hasPeripheral: false, isWaiting: true))
+    }
+
+    func testExperimentalWarningTextMatchesTheBrief() {
+        XCTAssertEqual(
+            Texts_BluetoothPeripheralView.instaraG1ExperimentalWarning,
+            "Instara-1 desteği deneyseldir. xDrip resmi Instara uygulamasının bağlantısını dinler; resmi uygulama açık ve sensöre bağlı kalmalıdır. Değerleri resmi uygulamayla karşılaştırıp doğrulayana kadar Loop, paylaşım ve glikoz alarmları kapalıdır."
+        )
+        XCTAssertFalse(Texts_BluetoothPeripheralView.instaraG1ExperimentalWarningTitle.isEmpty)
+    }
+
+    func testExperimentalWarningIsShownOnlyOnce() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(defaults.instaraG1ExperimentalWarningAcknowledged)
+        let notice = try XCTUnwrap(BluetoothPeripheralDetailState.instaraG1ExperimentalWarningNotice(type: .InstaraG1Type, defaults: defaults))
+        XCTAssertEqual(notice.message, Texts_BluetoothPeripheralView.instaraG1ExperimentalWarning)
+        XCTAssertNil(BluetoothPeripheralDetailState.instaraG1ExperimentalWarningNotice(type: .SibionicsGS1Type, defaults: defaults))
+        // acknowledging one passive source does not acknowledge the other
+        XCTAssertNil(BluetoothPeripheralDetailState.sibionicsGS1ExperimentalWarningNotice(type: .InstaraG1Type, defaults: defaults))
+
+        notice.onAcknowledge?()
+        XCTAssertTrue(defaults.instaraG1ExperimentalWarningAcknowledged)
+        XCTAssertFalse(defaults.sibionicsGS1ExperimentalWarningAcknowledged)
+        XCTAssertNil(BluetoothPeripheralDetailState.instaraG1ExperimentalWarningNotice(type: .InstaraG1Type, defaults: defaults))
+    }
+
+    func testDiagnosticsRowsAreReadOnlyAndOrdered() {
+        var diagnostics = InstaraG1Diagnostics()
+        diagnostics.statusMessage = "Glikoz verisi alınıyor."
+        diagnostics.firmware = "HW 1.0 / SW 2.3"
+        diagnostics.batteryPercent = 87
+        diagnostics.lastSeq = 1234
+        diagnostics.lastRawMmol = 6.4
+        diagnostics.intervalMinutes = 1
+        diagnostics.lastPacketDate = Date(timeIntervalSince1970: 1_800_000_000)
+        diagnostics.unlistedPacketCount = 3
+        diagnostics.invalidPacketCount = 2
+
+        let rows = InstaraG1DiagnosticsRows.make(diagnostics: diagnostics)
+
+        XCTAssertEqual(rows.map(\.title), [
+            "Bağlantı durumu", "Firmware", "Pil", "Son sıra no", "Son ham değer (mmol/L)", "Okuma aralığı", "Son paket zamanı", "Bilinmeyen/geçersiz paket"
+        ])
+        XCTAssertEqual(rows.map(\.detail), [
+            "Glikoz verisi alınıyor.",
+            "HW 1.0 / SW 2.3",
+            "87 %",
+            "1234",
+            "6.4",
+            "1 dk",
+            Date(timeIntervalSince1970: 1_800_000_000).toStringInUserLocale(timeStyle: .medium, dateStyle: .short),
+            "3 / 2"
+        ])
+    }
+
+    func testDiagnosticsRowsWithoutDataStayEmpty() {
+        let rows = InstaraG1DiagnosticsRows.make(diagnostics: InstaraG1Diagnostics())
+
+        XCTAssertEqual(rows.count, 8)
+        XCTAssertNil(rows[0].detail)
+        XCTAssertNil(rows[1].detail)
+        XCTAssertNil(rows[2].detail)
+        XCTAssertNil(rows[3].detail)
+        XCTAssertNil(rows[4].detail)
+        XCTAssertEqual(rows[5].detail, "5 dk")
+        XCTAssertNil(rows[6].detail)
+        XCTAssertEqual(rows[7].detail, "0 / 0")
+    }
+
+    func testLoopExpectedIntervalFollowsTheReadingInterval() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        // key absent: default 5 minutes
+        XCTAssertEqual(XDripCGMMetadataBuilder.directExpectedInterval(.instaraG1, defaults: defaults), 300)
+
+        defaults.instaraG1IntervalMinutes = 1
+        XCTAssertEqual(XDripCGMMetadataBuilder.directExpectedInterval(.instaraG1, defaults: defaults), 60)
+
+        // the other sources are unchanged
+        XCTAssertEqual(XDripCGMMetadataBuilder.directExpectedInterval(.sibionicsGS1, defaults: defaults), 60)
+        XCTAssertEqual(XDripCGMMetadataBuilder.directExpectedInterval(.dexcom, defaults: defaults), 300)
     }
 }

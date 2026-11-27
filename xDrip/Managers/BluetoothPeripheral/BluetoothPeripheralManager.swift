@@ -437,7 +437,9 @@ class BluetoothPeripheralManager: NSObject {
 
                         if let cgmTransmitterDelegate = cgmTransmitterDelegate {
 
-                            newTransmitter = CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+                            let instaraG1Transmitter = CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+                            instaraG1Transmitter.cGMInstaraG1TransmitterDelegate = self
+                            newTransmitter = instaraG1Transmitter
 
                         } else {
 
@@ -648,7 +650,9 @@ class BluetoothPeripheralManager: NSObject {
                 fatalError("in createNewTransmitter, InstaraG1Type, cgmTransmitterDelegate is nil")
             }
 
-            return CGMInstaraG1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+            let instaraG1Transmitter = CGMInstaraG1Transmitter(address: nil, name: nil, bluetoothTransmitterDelegate: bluetoothTransmitterDelegate ?? self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+            instaraG1Transmitter.cGMInstaraG1TransmitterDelegate = self
+            return instaraG1Transmitter
             
         }
         
@@ -1158,7 +1162,9 @@ class BluetoothPeripheralManager: NSObject {
 
                         if instaraG1.blePeripheral.shouldconnect {
 
-                            bluetoothTransmitters.insert(CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate), at: index)
+                            let instaraG1Transmitter = CGMInstaraG1Transmitter(address: instaraG1.blePeripheral.address, name: instaraG1.blePeripheral.name, bluetoothTransmitterDelegate: self, cGMTransmitterDelegate: cgmTransmitterDelegate)
+                            instaraG1Transmitter.cGMInstaraG1TransmitterDelegate = self
+                            bluetoothTransmitters.insert(instaraG1Transmitter, at: index)
 
                             if bluetoothPeripheralType.category() == .CGM {
                                 currentCgmTransmitterAddress = blePeripheral.address
@@ -1466,6 +1472,11 @@ extension BluetoothPeripheralManager: BluetoothPeripheralManaging {
         // Remove the per-device subscription choice so re-adding this address starts with defaults.
         if bluetoothPeripheral.bluetoothPeripheralType() == .Libre3HeartBeatType {
             GenericHeartbeatSettings.remove(bluetoothPeripheral.blePeripheral.address)
+        }
+
+        // a removed Instara G1 must never leave its verification on for the next device or sensor
+        if bluetoothPeripheral is InstaraG1 {
+            UserDefaults.standard.setInstaraG1Verified(false, sensorStart: nil, reason: "device-removed")
         }
 
         if let dexcomG7 = bluetoothPeripheral as? DexcomG7 {

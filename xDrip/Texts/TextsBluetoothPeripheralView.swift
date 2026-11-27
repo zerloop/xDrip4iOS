@@ -547,6 +547,50 @@ class Texts_BluetoothPeripheralView {
         return NSLocalizedString("instaraG1StatusReleased", tableName: filename, bundle: Bundle.main, value: "Uzun süredir veri gelmedi, bağlantı yeniden kuruluyor.", comment: "Instara G1 status, no data for a long time, the connection is being re-established")
     }()
 
+    static let instaraG1ExperimentalWarningTitle: String = {
+        return NSLocalizedString("instaraG1ExperimentalWarningTitle", tableName: filename, bundle: Bundle.main, value: "Instara-1 (Deneysel)", comment: "Instara G1, title of the one-time experimental warning shown before adding the device")
+    }()
+
+    static let instaraG1ExperimentalWarning: String = {
+        return NSLocalizedString("instaraG1ExperimentalWarning", tableName: filename, bundle: Bundle.main, value: "Instara-1 desteği deneyseldir. xDrip resmi Instara uygulamasının bağlantısını dinler; resmi uygulama açık ve sensöre bağlı kalmalıdır. Değerleri resmi uygulamayla karşılaştırıp doğrulayana kadar Loop, paylaşım ve glikoz alarmları kapalıdır.", comment: "Instara G1, one-time experimental warning shown before adding the device")
+    }()
+
+    static let instaraG1ConnectionStatus: String = {
+        return NSLocalizedString("instaraG1ConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Bağlantı durumu", comment: "Instara G1 diagnostics row title, connection status")
+    }()
+
+    static let instaraG1Firmware: String = {
+        return NSLocalizedString("instaraG1Firmware", tableName: filename, bundle: Bundle.main, value: "Firmware", comment: "Instara G1 diagnostics row title, hardware and software version from the handshake")
+    }()
+
+    static let instaraG1Battery: String = {
+        return NSLocalizedString("instaraG1Battery", tableName: filename, bundle: Bundle.main, value: "Pil", comment: "Instara G1 diagnostics row title, sensor battery percentage")
+    }()
+
+    static let instaraG1LastSequence: String = {
+        return NSLocalizedString("instaraG1LastSequence", tableName: filename, bundle: Bundle.main, value: "Son sıra no", comment: "Instara G1 diagnostics row title, sequence number of the latest realtime packet")
+    }()
+
+    static let instaraG1LastRawValue: String = {
+        return NSLocalizedString("instaraG1LastRawValue", tableName: filename, bundle: Bundle.main, value: "Son ham değer (mmol/L)", comment: "Instara G1 diagnostics row title, value of the latest realtime packet as sent by the sensor")
+    }()
+
+    static let instaraG1ReadingInterval: String = {
+        return NSLocalizedString("instaraG1ReadingInterval", tableName: filename, bundle: Bundle.main, value: "Okuma aralığı", comment: "Instara G1 diagnostics row title, reading interval of the session")
+    }()
+
+    static let instaraG1ReadingIntervalMinutes: String = {
+        return NSLocalizedString("instaraG1ReadingIntervalMinutes", tableName: filename, bundle: Bundle.main, value: "%d dk", comment: "Instara G1 diagnostics, reading interval in minutes. %d is the number of minutes")
+    }()
+
+    static let instaraG1LastPacketTime: String = {
+        return NSLocalizedString("instaraG1LastPacketTime", tableName: filename, bundle: Bundle.main, value: "Son paket zamanı", comment: "Instara G1 diagnostics row title, time of the latest decodable packet")
+    }()
+
+    static let instaraG1UnknownInvalidPacketCount: String = {
+        return NSLocalizedString("instaraG1UnknownInvalidPacketCount", tableName: filename, bundle: Bundle.main, value: "Bilinmeyen/geçersiz paket", comment: "Instara G1 diagnostics row title, number of unknown and invalid packets")
+    }()
+
     static let sibionicsGS1ConnectionStatus: String = {
         return NSLocalizedString("sibionicsGS1ConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Bağlantı durumu", comment: "Sibionics GS1 diagnostics row title, connection status")
     }()

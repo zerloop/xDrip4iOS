@@ -95,7 +95,7 @@ enum XDripCGMMetadataBuilder {
         let transmitterType = context.transmitter?.cgmTransmitterType()
         let mode = defaults.isMaster ? "direct" : "follower"
         let sourceKind = defaults.isMaster ? directSourceKind(transmitterType) : followerSourceKind(defaults.followerDataSourceType)
-        let expectedInterval = defaults.isMaster ? directExpectedInterval(transmitterType) : followerExpectedInterval(defaults.followerDataSourceType)
+        let expectedInterval = defaults.isMaster ? directExpectedInterval(transmitterType, defaults: defaults) : followerExpectedInterval(defaults.followerDataSourceType)
         let startDate = context.activeSensor?.startDate ?? defaults.activeSensorStartDate
         let model = defaults.activeSensorDescription ?? transmitterType?.detailedDescription()
         let isAnubis = defaults.isMaster && context.transmitter?.isAnubisG6() == true
@@ -314,12 +314,12 @@ enum XDripCGMMetadataBuilder {
         }
     }
 
-    private static func directExpectedInterval(_ type: CGMTransmitterType?) -> Double? {
+    static func directExpectedInterval(_ type: CGMTransmitterType?, defaults: UserDefaults = .standard) -> Double? {
         switch type {
         case .dexcom, .dexcomG7: return 300
         case .Libre3, .Libre2, .miaomiao, .Bubble, .medtrumTouchCareNano, .sibionicsGS1: return 60
-        // Task 5: use the measured reading interval of the Instara G1 session, default until then
-        case .instaraG1: return Double(ConstantsInstaraG1.defaultIntervalMinutes * 60)
+        // the reading interval of the Instara G1 session, written by CGMInstaraG1Transmitter (default 5 minutes)
+        case .instaraG1: return Double(defaults.instaraG1IntervalMinutes) * 60
         case nil: return nil
         }
     }

@@ -679,8 +679,7 @@ final class BluetoothPeripheralDetailState: NSObject, ObservableObject {
         case .SibionicsGS1Type:
             return makeSibionicsGS1Sections(bluetoothPeripheral: bluetoothPeripheral)
         case .InstaraG1Type:
-            // Task 5: Instara G1 specific sections are added together with the transmitter UI
-            return []
+            return makeInstaraG1Sections(bluetoothPeripheral: bluetoothPeripheral)
         case .M5StackType:
             return makeM5StackSections(bluetoothPeripheral: bluetoothPeripheral, includesSpecificM5StackSection: true)
         case .M5StickCType:
@@ -900,6 +899,7 @@ private extension BluetoothPeripheralDetailState {
         }
 
         return Self.sibionicsGS1AddFlowFooter(type: expectedBluetoothPeripheralType, hasPeripheral: bluetoothPeripheral != nil, isWaiting: isScanning)
+            ?? Self.instaraG1AddFlowFooter(type: expectedBluetoothPeripheralType, hasPeripheral: bluetoothPeripheral != nil, isWaiting: isScanning)
     }
 
     // Primary and co-existence labels are localized text, but the leading symbol
@@ -1377,8 +1377,10 @@ private extension DexcomG7BluetoothSlot {
 
 private extension BluetoothPeripheralDetailState {
     func requestScanForBluetoothPeripheral(type: BluetoothPeripheralType) {
-        // the Sibionics GS1 experimental warning is shown once, until the user confirms it
-        guard let notice = type.scanPreparationNotice ?? Self.sibionicsGS1ExperimentalWarningNotice(type: type) else {
+        // the Sibionics GS1 and Instara G1 experimental warnings are shown once, until the user confirms them
+        guard let notice = type.scanPreparationNotice
+                ?? Self.sibionicsGS1ExperimentalWarningNotice(type: type)
+                ?? Self.instaraG1ExperimentalWarningNotice(type: type) else {
             scanForBluetoothPeripheral(type: type)
             return
         }
@@ -1509,7 +1511,7 @@ private extension BluetoothPeripheralDetailState {
         case .alreadyScanning, .alreadyConnected, .connecting:
             trace("in handleScanningResult, scanning not started. Scanning result = %{public}@", log: log, category: ConstantsLog.categoryBluetoothPeripheralViewController, type: .error, startScanningResult.description())
             // A recovered Libre 3 can retrieve its known peripheral and begin connecting before
-            // startScanning returns. The passive Sibionics GS1 never scans: it keeps retrieving the
+            // startScanning returns. The passive Sibionics GS1 and Instara G1 never scan: they keep retrieving the
             // official app's connection with back-off. Keep the handoff visible until handleFound adopts that device.
             isScanning = Self.keepsWaitingForNewPeripheral(type: expectedBluetoothPeripheralType, scanningResult: startScanningResult) && bluetoothPeripheral == nil
             if isScanning {
@@ -2923,6 +2925,32 @@ private extension BluetoothPeripheralDetailState {
         ]
     }
 
+    func makeInstaraG1Sections(bluetoothPeripheral: BluetoothPeripheral) -> [BluetoothPeripheralDetailSection] {
+        guard bluetoothPeripheral is InstaraG1 else { return [] }
+
+        // read-only diagnostics of the live transmitter. Without one (disabled) only the default "not trying to connect" status is known
+        let transmitter = bluetoothPeripheralManager?.getBluetoothTransmitter(for: bluetoothPeripheral, createANewOneIfNecesssary: false) as? CGMInstaraG1Transmitter
+        var diagnostics = transmitter?.diagnostics ?? InstaraG1Diagnostics()
+        if transmitter == nil {
+            diagnostics.statusMessage = Texts_BluetoothPeripheralView.notTryingToConnect
+            diagnostics.intervalMinutes = UserDefaults.standard.instaraG1IntervalMinutes
+        }
+        // the handshake is only sent when the official app connects, the stored firmware survives app restarts
+        if diagnostics.firmware == nil, let instaraG1 = bluetoothPeripheral as? InstaraG1 {
+            diagnostics.firmware = instaraG1.firmware
+        }
+
+        return [
+            BluetoothPeripheralDetailSection(
+                id: "instara-g1",
+                title: BluetoothPeripheralType.InstaraG1Type.bluetoothPeripheralDisplayTitle,
+                rows: InstaraG1DiagnosticsRows.make(diagnostics: diagnostics).map {
+                    row(id: "instara-g1-" + $0.id, title: $0.title, detail: $0.detail)
+                }
+            )
+        ]
+    }
+
     func makeLibreBridgeRows(
         idPrefix: String,
         sensorType: String?,
@@ -2996,7 +3024,8 @@ extension BluetoothPeripheralDetailState {
         switch (type, scanningResult) {
         case (.Libre3Type, .alreadyScanning), (.Libre3Type, .alreadyConnected), (.Libre3Type, .connecting):
             return true
-        case (.SibionicsGS1Type, .alreadyScanning), (.SibionicsGS1Type, .connecting):
+        case (.SibionicsGS1Type, .alreadyScanning), (.SibionicsGS1Type, .connecting),
+             (.InstaraG1Type, .alreadyScanning), (.InstaraG1Type, .connecting):
             // the passive transmitter is retrieving the official app's connection with back-off
             return true
         default:
@@ -3018,6 +3047,47 @@ extension BluetoothPeripheralDetailState {
             message: Texts_BluetoothPeripheralView.sibionicsGS1ExperimentalWarning,
             onAcknowledge: { defaults.sibionicsGS1ExperimentalWarningAcknowledged = true }
         )
+    }
+}
+
+/// footer and one-time experimental warning while adding an Instara G1
+extension BluetoothPeripheralDetailState {
+    /// footer while adding an Instara G1: the official app must hold the sensor connection
+    static func instaraG1AddFlowFooter(type: BluetoothPeripheralType, hasPeripheral: Bool, isWaiting: Bool) -> String? {
+        guard type == .InstaraG1Type, !hasPeripheral, isWaiting else { return nil }
+        return Texts_BluetoothPeripheralView.instaraG1StatusOfficialAppNotConnected
+    }
+
+    /// the one-time experimental warning, nil once the user acknowledged it
+    static func instaraG1ExperimentalWarningNotice(type: BluetoothPeripheralType, defaults: UserDefaults = .standard) -> BluetoothPeripheralScanPreparationNotice? {
+        guard type == .InstaraG1Type, !defaults.instaraG1ExperimentalWarningAcknowledged else { return nil }
+        return BluetoothPeripheralScanPreparationNotice(
+            title: Texts_BluetoothPeripheralView.instaraG1ExperimentalWarningTitle,
+            message: Texts_BluetoothPeripheralView.instaraG1ExperimentalWarning,
+            onAcknowledge: { defaults.instaraG1ExperimentalWarningAcknowledged = true }
+        )
+    }
+}
+
+/// read-only diagnostics rows of the Instara G1 detail screen
+struct InstaraG1DiagnosticsRows {
+    struct Row: Equatable {
+        let id: String
+        let title: String
+        let detail: String?
+    }
+
+    static func make(diagnostics: InstaraG1Diagnostics) -> [Row] {
+        return [
+            Row(id: "connection-status", title: Texts_BluetoothPeripheralView.instaraG1ConnectionStatus, detail: diagnostics.statusMessage.isEmpty ? nil : diagnostics.statusMessage),
+            Row(id: "firmware", title: Texts_BluetoothPeripheralView.instaraG1Firmware, detail: diagnostics.firmware),
+            Row(id: "battery", title: Texts_BluetoothPeripheralView.instaraG1Battery, detail: diagnostics.batteryPercent.map { "\($0) %" }),
+            Row(id: "last-sequence", title: Texts_BluetoothPeripheralView.instaraG1LastSequence, detail: diagnostics.lastSeq.map { $0.description }),
+            Row(id: "last-raw-value", title: Texts_BluetoothPeripheralView.instaraG1LastRawValue, detail: diagnostics.lastRawMmol.map { String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), $0) }),
+            Row(id: "reading-interval", title: Texts_BluetoothPeripheralView.instaraG1ReadingInterval, detail: String(format: Texts_BluetoothPeripheralView.instaraG1ReadingIntervalMinutes, diagnostics.intervalMinutes)),
+            Row(id: "last-packet-time", title: Texts_BluetoothPeripheralView.instaraG1LastPacketTime, detail: diagnostics.lastPacketDate.map { $0.toStringInUserLocale(timeStyle: .medium, dateStyle: .short) }),
+            Row(id: "unknown-invalid-packet-count", title: Texts_BluetoothPeripheralView.instaraG1UnknownInvalidPacketCount, detail: "\(diagnostics.unlistedPacketCount) / \(diagnostics.invalidPacketCount)")
+        ]
     }
 }
 

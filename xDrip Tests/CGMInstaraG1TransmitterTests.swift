@@ -256,6 +256,20 @@ final class CGMInstaraG1TransmitterTests: XCTestCase {
         XCTAssertNil(storedState(), "packets without glucose do not create a session")
     }
 
+    func testHandshakeFirmwareIsReportedOnceToTheFirmwareDelegate() {
+        let firmwareDelegate = FakeInstaraG1FirmwareDelegate()
+        transmitter.cGMInstaraG1TransmitterDelegate = firmwareDelegate
+
+        transmitter.handleNotification(frame(cmd: 0xF0, payload: [0x01, 0x02]), now: t0)
+        transmitter.handleNotification(frame(cmd: 0xF0, payload: [0x01, 0x02]), now: t0)
+        spinMainRunLoop(0.2)
+        XCTAssertEqual(firmwareDelegate.firmwares, ["HW 1 / SW 2"], "an unchanged handshake is not saved again")
+
+        transmitter.handleNotification(frame(cmd: 0xF0, payload: [0x01, 0x03]), now: t0)
+        spinMainRunLoop(0.2)
+        XCTAssertEqual(firmwareDelegate.firmwares, ["HW 1 / SW 2", "HW 1 / SW 3"])
+    }
+
     func testReconnectPolicyBacksOff5_10_15() {
         var policy = InstaraG1ReconnectPolicy(delays: [5, 10, 15])
 
@@ -325,4 +339,12 @@ private final class FakeBluetoothTransmitterDelegate: BluetoothTransmitterDelega
     func pairingFailed() {}
     func error(message: String) {}
     func heartBeat() {}
+}
+
+private final class FakeInstaraG1FirmwareDelegate: CGMInstaraG1TransmitterDelegate {
+    private(set) var firmwares: [String] = []
+    func received(firmware: String, from cGMInstaraG1Transmitter: CGMInstaraG1Transmitter) {
+        XCTAssertTrue(Thread.isMainThread)
+        firmwares.append(firmware)
+    }
 }
