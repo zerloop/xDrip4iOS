@@ -197,6 +197,7 @@ final class InstaraG1SessionTests: XCTestCase {
     func testTwoConsistentLowerSequencesStartNewSession() {
         var state = InstaraG1SessionState()
         _ = realtime(500, t0.addingTimeInterval(-3000), &state)
+        state.sensorStartLocked = true
         let first = realtime(3, t0, mmol: 6.0, &state)
         XCTAssertTrue(first.readings.isEmpty)
         let second = realtime(4, t0.addingTimeInterval(300), mmol: 6.1, &state)
@@ -209,6 +210,8 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertEqual(state.sensorStart, second.newSensorStart)
         XCTAssertNil(state.suspect)
         XCTAssertEqual(Set(state.seenSeqs.keys), [3, 4])
+        // a confirmed new session unlocks the start again
+        XCTAssertFalse(state.sensorStartLocked)
     }
 
     func testInconsistentSecondLowerSequenceDoesNotStartNewSession() {
@@ -363,6 +366,7 @@ final class InstaraG1SessionTests: XCTestCase {
         var state = InstaraG1SessionState()
         let t = t0
         _ = realtime(100, t, &state)
+        let startBeforeJump = state.sensorStart
         let jump = realtime(60000, t.addingTimeInterval(300), &state)
         XCTAssertTrue(jump.readings.isEmpty)
         XCTAssertTrue(logContains(jump, "SEQ-JUMP"), "\(jump.log)")
@@ -378,6 +382,10 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertEqual(normal.readings.map { $0.seq }, [60002])
         XCTAssertNil(normal.newSensorStart)
         XCTAssertFalse(normal.log.contains { $0.hasPrefix("SESSION-") || $0.hasPrefix("SEQ-") }, "\(normal.log)")
+        // the interval became measured at 60002, but after a re-anchor the start stays
+        XCTAssertEqual(state.intervalSamples.count, 2)
+        XCTAssertTrue(state.sensorStartLocked)
+        XCTAssertEqual(state.sensorStart, startBeforeJump)
     }
 
     func testFastOutlierIsClearedByNormalPacket() {

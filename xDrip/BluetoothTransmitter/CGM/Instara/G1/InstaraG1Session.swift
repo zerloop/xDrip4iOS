@@ -52,6 +52,8 @@ struct InstaraG1SessionState: Codable, Equatable {
     var suspect: InstaraG1Suspect?
     /// a realtime packet too fast after the reference (seq jumped ahead), waiting for a second packet to re-anchor
     var jumpCandidate: InstaraG1JumpCandidate?
+    /// set by a SEQ-REANCHOR: sequence numbers no longer count from the sensor start, so sensorStart is not re-derived any more in this session
+    var sensorStartLocked: Bool = false
 }
 
 struct InstaraG1SessionResult {
@@ -168,7 +170,7 @@ enum InstaraG1Session {
     private static func intervalMayHaveChanged(from previous: Int, wasMeasured: Bool, announced: Bool, state: inout InstaraG1SessionState, context: inout Context) {
         let current = intervalMinutes(state)
         let isMeasured = measuredIntervalMinutes(state) != nil
-        if !wasMeasured, isMeasured, let refSeq = state.refSeq, let refDate = state.refDate {
+        if !wasMeasured, isMeasured, !state.sensorStartLocked, let refSeq = state.refSeq, let refDate = state.refDate {
             state.sensorStart = refDate.addingTimeInterval(-Double(refSeq) * intervalSeconds(state))
             context.log.append("SENSOR-START;reason=interval-measured;interval=\(current);sensorStart=\(epoch(state.sensorStart))")
         } else if current != previous {
@@ -293,6 +295,7 @@ enum InstaraG1Session {
                 state.lastSeq = seq
                 state.refSeq = seq
                 state.refDate = receivedAt
+                state.sensorStartLocked = true
                 context.log.append("SEQ-REANCHOR;fromSeq=\(refSeq);jumpSeq=\(jump.seq);seq=\(seq)")
                 intervalMayHaveChanged(from: previousInterval, wasMeasured: wasMeasured, announced: false, state: &state, context: &context)
                 if case let .valid(jumpMgDl, jumpClamped) = classify(jump.rawMmol, seq: jump.seq, context: &context) {
