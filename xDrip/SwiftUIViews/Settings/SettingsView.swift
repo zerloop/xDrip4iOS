@@ -100,6 +100,10 @@ struct SettingsNavigationView: View {
         .onChange(of: incomingBackupRequest?.id) { _ in
             openIncomingBackupIfNeeded()
         }
+        // the Instara G1 verification toggle (Bluetooth tab) changes canConfigureOSAidSharing of the OS-AID row
+        .onReceive(UserDefaults.standard.publisher(for: \.instaraG1ExportVerified).dropFirst().receive(on: DispatchQueue.main)) { _ in
+            listModel.reload(.all)
+        }
         .onDisappear { presenter.cancelTraceEmailPreparation() }
         .onChange(of: scenePhase) { phase in
             if phase == .background { presenter.cancelTraceEmailPreparation() }

@@ -219,6 +219,12 @@
 "instaraG1ReadingIntervalMinutes" = "%d dk";
 "instaraG1LastPacketTime" = "Son paket zamanı";
 "instaraG1UnknownInvalidPacketCount" = "Bilinmeyen/geçersiz paket";
+"instaraG1VerificationToggle" = "Değerleri doğruladım — Loop ve paylaşımı aç";
+"instaraG1VerificationConfirmTitle" = "Değerleri doğruladınız mı?";
+"instaraG1VerificationConfirmMessage" = "Bu sensörün değerlerini resmi Instara uygulamasıyla karşılaştırdım ve tutarlı buldum. Değerler Loop'ta insülin dozlamasında kullanılacak. Yeni sensörde bu onay sıfırlanır.";
+"instaraG1VerificationConfirm" = "Onaylıyorum";
+"instaraG1VerificationCancel" = "Vazgeç";
+"instaraG1VerificationNeedsSensorData" = "Önce sensör verisi gelmeli";
 "sibionicsGS1ConnectionStatus" = "Bağlantı durumu";
 "sibionicsGS1Firmware" = "Firmware";
 "sibionicsGS1FirmwareLegacy" = "Eski";

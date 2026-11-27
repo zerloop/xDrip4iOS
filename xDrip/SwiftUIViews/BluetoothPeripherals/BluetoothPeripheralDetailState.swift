@@ -1589,6 +1589,8 @@ private extension BluetoothPeripheralDetailState {
 
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.nfcScanFailed.rawValue, options: .new, context: nil)
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.nfcScanSuccessful.rawValue, options: .new, context: nil)
+        // the Instara G1 verification can also be revoked by the transmitter (new sensor, sensor mismatch)
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.instaraG1ExportVerified.rawValue, options: .new, context: nil)
         libre3Observer = NotificationCenter.default.addObserver(forName: .libre3StateChanged, object: nil, queue: .main) { [weak self] _ in
             self?.refresh()
         }
@@ -1600,6 +1602,7 @@ private extension BluetoothPeripheralDetailState {
 
         UserDefaults.standard.removeObserver(self, forKeyPath: UserDefaults.Key.nfcScanFailed.rawValue)
         UserDefaults.standard.removeObserver(self, forKeyPath: UserDefaults.Key.nfcScanSuccessful.rawValue)
+        UserDefaults.standard.removeObserver(self, forKeyPath: UserDefaults.Key.instaraG1ExportVerified.rawValue)
         if let libre3Observer { NotificationCenter.default.removeObserver(libre3Observer) }
         libre3Observer = nil
         didAddObservers = false
@@ -1625,6 +1628,9 @@ private extension BluetoothPeripheralDetailState {
 
             trace("in observeValue, nfcScanSuccessful has been set to true so will inform the user and try and update the connection status to Scanning", log: log, category: ConstantsLog.categoryBluetoothPeripheralViewController, type: .error)
             pendingAlert = BluetoothPeripheralDetailAlert(title: TextsLibreNFC.nfcScanSuccessfulTitle, message: TextsLibreNFC.nfcScanSuccessfulMessage)
+            refresh()
+
+        case .instaraG1ExportVerified:
             refresh()
 
         default:
@@ -2940,7 +2946,28 @@ private extension BluetoothPeripheralDetailState {
             diagnostics.firmware = instaraG1.firmware
         }
 
+        // the verification is bound to xDrip's active sensor, without one it cannot be turned on
+        let activeSensorStart = sensorProvider?.activeSensor?.startDate
+        let isVerified = UserDefaults.standard.instaraG1ExportVerified
+
         return [
+            BluetoothPeripheralDetailSection(
+                id: "instara-g1-verification",
+                title: nil,
+                footer: InstaraG1VerificationToggle.footer(activeSensorStart: activeSensorStart),
+                rows: [
+                    toggleRow(
+                        id: "instara-g1-verification-toggle",
+                        title: Texts_BluetoothPeripheralView.instaraG1VerificationToggle,
+                        isOn: isVerified,
+                        // turning off stays possible without an active sensor
+                        isEnabled: isVerified || InstaraG1VerificationToggle.isEnabled(activeSensorStart: activeSensorStart),
+                        setValue: { [weak self] on in
+                            self?.instaraG1VerificationToggleChanged(to: on)
+                        }
+                    )
+                ]
+            ),
             BluetoothPeripheralDetailSection(
                 id: "instara-g1",
                 title: BluetoothPeripheralType.InstaraG1Type.bluetoothPeripheralDisplayTitle,
@@ -2949,6 +2976,17 @@ private extension BluetoothPeripheralDetailState {
                 }
             )
         ]
+    }
+
+    func instaraG1VerificationToggleChanged(to on: Bool) {
+        // the start is read again on tap, the confirmation binds the verification to the sensor active now
+        let activeSensorStart = sensorProvider?.activeSensor?.startDate
+        let confirmation = InstaraG1VerificationToggle.handleChange(to: on, activeSensorStart: activeSensorStart) { [weak self] in
+            self?.refresh()
+        }
+        if let confirmation {
+            pendingAlert = confirmation
+        }
     }
 
     func makeLibreBridgeRows(
@@ -3088,6 +3126,49 @@ struct InstaraG1DiagnosticsRows {
             Row(id: "last-packet-time", title: Texts_BluetoothPeripheralView.instaraG1LastPacketTime, detail: diagnostics.lastPacketDate.map { $0.toStringInUserLocale(timeStyle: .medium, dateStyle: .short) }),
             Row(id: "unknown-invalid-packet-count", title: Texts_BluetoothPeripheralView.instaraG1UnknownInvalidPacketCount, detail: "\(diagnostics.unlistedPacketCount) / \(diagnostics.invalidPacketCount)")
         ]
+    }
+}
+
+/// The Instara G1 verification toggle. It is the only way the user opens Loop, Nightscout, Apple Health,
+/// Dexcom Share and glucose value alarms for Instara, so turning it on always goes through the confirmation.
+enum InstaraG1VerificationToggle {
+    /// the toggle can only be turned on for an existing active sensor, the verification is bound to its start
+    static func isEnabled(activeSensorStart: Date?) -> Bool {
+        activeSensorStart != nil
+    }
+
+    static func footer(activeSensorStart: Date?) -> String? {
+        isEnabled(activeSensorStart: activeSensorStart) ? nil : Texts_BluetoothPeripheralView.instaraG1VerificationNeedsSensorData
+    }
+
+    /// Handles a change of the switch.
+    /// - Turning off applies at once, no confirmation needed. Returns nil.
+    /// - Turning on changes nothing yet: returns the confirmation to present. Only its confirm action turns the
+    ///   verification on, bound to `activeSensorStart`. Without an active sensor nothing happens and nil is returned.
+    /// - refresh: redraws the switch, also after cancelling so it shows off again
+    static func handleChange(to on: Bool, activeSensorStart: Date?, defaults: UserDefaults = .standard, refresh: @escaping () -> Void) -> BluetoothPeripheralDetailAlert? {
+        guard on else {
+            defaults.setInstaraG1Verified(false, sensorStart: nil, reason: "user")
+            refresh()
+            return nil
+        }
+
+        guard let activeSensorStart else {
+            refresh()
+            return nil
+        }
+
+        return BluetoothPeripheralDetailAlert(
+            title: Texts_BluetoothPeripheralView.instaraG1VerificationConfirmTitle,
+            message: Texts_BluetoothPeripheralView.instaraG1VerificationConfirmMessage,
+            primaryButtonTitle: Texts_BluetoothPeripheralView.instaraG1VerificationConfirm,
+            primaryAction: {
+                defaults.setInstaraG1Verified(true, sensorStart: activeSensorStart, reason: "user")
+                refresh()
+            },
+            secondaryButtonTitle: Texts_BluetoothPeripheralView.instaraG1VerificationCancel,
+            secondaryAction: refresh
+        )
     }
 }
 

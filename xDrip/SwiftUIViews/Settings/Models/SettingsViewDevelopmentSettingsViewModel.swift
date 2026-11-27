@@ -71,10 +71,23 @@ class SettingsViewDevelopmentSettingsViewModel: NSObject, SettingsViewModelProto
     private let rowGroup: SettingsViewDevelopmentSettingsRowGroup
     private let log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categorySettingsViewDevelopmentSettingsViewModel)
 
+    /// the OS-AID rows depend on canConfigureOSAidSharing, which changes with the Instara G1 verification toggle
+    private var instaraG1VerificationObservation: NSKeyValueObservation?
+
     init(rowGroup: SettingsViewDevelopmentSettingsRowGroup = .advanced) {
         self.rowGroup = rowGroup
 
         super.init()
+
+        instaraG1VerificationObservation = UserDefaults.standard.observe(\.instaraG1ExportVerified, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { [weak self] in
+                self?.sectionReloadClosure?()
+            }
+        }
+    }
+
+    deinit {
+        instaraG1VerificationObservation?.invalidate()
     }
     
     // MARK: - Native SwiftUI rows

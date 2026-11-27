@@ -3106,7 +3106,8 @@ extension UserDefaults {
 
     /// The only code path that changes the Instara G1 verification.
     /// - on: true when the user verified the values against the official app
-    /// - sensorStart: sensor start of the verified sensor, stored with the verification; cleared when turned off
+    /// - sensorStart: sensor start of the verified sensor, stored with the verification; cleared when turned off.
+    ///   nil on an on→on call keeps the stored binding
     /// - reason: why the verification changes (user, new sensor, device deleted), written to the trace
     ///
     /// Off to on advances all glucose export cursors to now when Instara G1 is the active master source: readings
@@ -3125,9 +3126,10 @@ extension UserDefaults {
         if on {
             if let sensorStart = sensorStart {
                 set(sensorStart, forKey: Key.instaraG1VerifiedSensorStart.rawValue)
-            } else {
+            } else if !wasOn {
                 removeObject(forKey: Key.instaraG1VerifiedSensorStart.rawValue)
             }
+            // on→on without a sensor start keeps the existing binding
         } else {
             removeObject(forKey: Key.instaraG1VerifiedSensorStart.rawValue)
         }
@@ -3136,7 +3138,7 @@ extension UserDefaults {
             set(on, forKey: Key.instaraG1ExportVerified.rawValue)
         }
 
-        let sensorStartText = on ? (sensorStart.map { ISO8601DateFormatter().string(from: $0) } ?? "nil") : "nil"
+        let sensorStartText = on ? (instaraG1VerifiedSensorStart.map { ISO8601DateFormatter().string(from: $0) } ?? "nil") : "nil"
         trace("INSTARA-VERIFY %{public}@ reason=%{public}@ sensorStart=%{public}@ previous=%{public}@ activeSource=%{public}@ cursorsAdvanced=%{public}@", log: Self.instaraG1Log, category: ConstantsLog.categoryCGMInstaraG1, type: .info, on ? "on" : "off", reason, sensorStartText, wasOn ? "on" : "off", instaraIsActiveSource ? "yes" : "no", advancesCursors ? "yes" : "no")
     }
 

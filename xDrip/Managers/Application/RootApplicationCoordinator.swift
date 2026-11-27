@@ -163,6 +163,9 @@ import AppIntents
     
     /// reference to activeSensor
     private(set) var activeSensor:Sensor?
+
+    /// last value handled by the instaraG1ExportVerified observer
+    private var lastObservedInstaraG1ExportVerified = UserDefaults.standard.instaraG1ExportVerified
     
     /// reference to bgReadingSpeaker
     private var bgReadingSpeaker:BGReadingSpeaker?
@@ -466,6 +469,10 @@ import AppIntents
         
         // add observer for stopActiveSensor, this will reset the active sensor to nil when the user disconnects an intergrated transmitter/sensor (e.g. Libre 2 Direct). This will help ensure that the data source info is updated/disabled until a new sensor is started.
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.stopActiveSensor.rawValue, options: .new, context: nil)
+
+        // the Instara G1 verification toggle opens or closes export, OS-AID sharing and glucose alarms of the active source,
+        // like a transmitter type change does
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.instaraG1ExportVerified.rawValue, options: .new, context: nil)
         
         // add observer for followerKeepAliveType, to reset the app badge notification if in follower mode and keep-alive is set to disabled
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.followerBackgroundKeepAliveType.rawValue, options: .new, context: nil)
@@ -716,6 +723,9 @@ import AppIntents
             }
         }
         activeSensor = SensorsAccessor.init(coreDataManager: coreDataManager).fetchActiveSensor()
+
+        // a stored Instara G1 verification is only valid for the sensor it was given for
+        revokeInstaraVerificationIfNotForActiveSensor()
         
         // instantiate bgReadingsAccessor
         bgReadingsAccessor = BgReadingsAccessor(coreDataManager: coreDataManager)
@@ -1597,6 +1607,20 @@ import AppIntents
             updateSnoozeStatus()
             
         case UserDefaults.Key.enableAdjustment, UserDefaults.Key.enableSmoothing:
+            updatePostProcessingStatus()
+            
+        case UserDefaults.Key.instaraG1ExportVerified:
+            // KVO also fires for writes that do not change the value (e.g. removing an absent key)
+            let isVerified = UserDefaults.standard.instaraG1ExportVerified
+            guard isVerified != lastObservedInstaraG1ExportVerified else { break }
+            lastObservedInstaraG1ExportVerified = isVerified
+            // same refresh as for a transmitter type change: the source policy of the active source changed
+            bgPostProcessingManager?.refreshSourceContext()
+            // publishes or clears the OS-AID app group data according to the new policy
+            loopManager?.shareMetadata()
+            if rootTabStateModel?.dependencies != nil {
+                publishRootHomeState()
+            }
             updatePostProcessingStatus()
             
         case UserDefaults.Key.followerDataSourceType,
@@ -3188,6 +3212,24 @@ extension RootApplicationCoordinator: @preconcurrency CGMTransmitterDelegate {
         createNotification(title: Texts_Common.warning, body: Texts_HomeView.sensorNotDetected, identifier: ConstantsNotifications.NotificationIdentifierForSensorNotDetected.sensorNotDetected, sound: nil)
     }
     
+    /// true when a stored Instara G1 verification belongs to the active sensor: both starts known and at most
+    /// 30 minutes apart. A verification without a sensor start or without an active sensor is never valid
+    nonisolated static func instaraVerificationIsValid(verifiedStart: Date?, activeSensorStart: Date?) -> Bool {
+        guard let verifiedStart, let activeSensorStart else { return false }
+        return abs(verifiedStart.timeIntervalSince(activeSensorStart)) <= instaraVerificationSensorStartTolerance
+    }
+
+    nonisolated static let instaraVerificationSensorStartTolerance: TimeInterval = 30 * 60
+
+    /// app start: a verification restored for another sensor (or without an active sensor) is turned off
+    private func revokeInstaraVerificationIfNotForActiveSensor() {
+        let defaults = UserDefaults.standard
+        guard defaults.instaraG1ExportVerified,
+              !Self.instaraVerificationIsValid(verifiedStart: defaults.instaraG1VerifiedSensorStart, activeSensorStart: activeSensor?.startDate) else { return }
+        trace("Instara G1 verification does not belong to the active sensor, verified start = %{public}@, active sensor start = %{public}@", log: log, category: ConstantsLog.categoryRootView, type: .info, defaults.instaraG1VerifiedSensorStart?.description(with: .current) ?? "nil", activeSensor?.startDate.description(with: .current) ?? "nil")
+        defaults.setInstaraG1Verified(false, sensorStart: nil, reason: "restore-mismatch")
+    }
+
     /// Enforces the configured warm-up boundary independently of the value carried in a packet.
     /// A G7 can expose positive internal glucose estimates before warm-up completes. Those values
     /// are not displayable readings and must not reach storage, alerts, widgets, Watch, or AID.

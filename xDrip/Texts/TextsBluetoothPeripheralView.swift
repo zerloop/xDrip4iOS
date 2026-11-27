@@ -591,6 +591,30 @@ class Texts_BluetoothPeripheralView {
         return NSLocalizedString("instaraG1UnknownInvalidPacketCount", tableName: filename, bundle: Bundle.main, value: "Bilinmeyen/geçersiz paket", comment: "Instara G1 diagnostics row title, number of unknown and invalid packets")
     }()
 
+    static let instaraG1VerificationToggle: String = {
+        return NSLocalizedString("instaraG1VerificationToggle", tableName: filename, bundle: Bundle.main, value: "Değerleri doğruladım — Loop ve paylaşımı aç", comment: "Instara G1 detail screen, verification toggle that opens Loop, Nightscout, Apple Health, Dexcom Share and glucose alarms")
+    }()
+
+    static let instaraG1VerificationConfirmTitle: String = {
+        return NSLocalizedString("instaraG1VerificationConfirmTitle", tableName: filename, bundle: Bundle.main, value: "Değerleri doğruladınız mı?", comment: "Instara G1 verification confirmation dialog, title")
+    }()
+
+    static let instaraG1VerificationConfirmMessage: String = {
+        return NSLocalizedString("instaraG1VerificationConfirmMessage", tableName: filename, bundle: Bundle.main, value: "Bu sensörün değerlerini resmi Instara uygulamasıyla karşılaştırdım ve tutarlı buldum. Değerler Loop'ta insülin dozlamasında kullanılacak. Yeni sensörde bu onay sıfırlanır.", comment: "Instara G1 verification confirmation dialog, message")
+    }()
+
+    static let instaraG1VerificationConfirm: String = {
+        return NSLocalizedString("instaraG1VerificationConfirm", tableName: filename, bundle: Bundle.main, value: "Onaylıyorum", comment: "Instara G1 verification confirmation dialog, confirm button")
+    }()
+
+    static let instaraG1VerificationCancel: String = {
+        return NSLocalizedString("instaraG1VerificationCancel", tableName: filename, bundle: Bundle.main, value: "Vazgeç", comment: "Instara G1 verification confirmation dialog, cancel button")
+    }()
+
+    static let instaraG1VerificationNeedsSensorData: String = {
+        return NSLocalizedString("instaraG1VerificationNeedsSensorData", tableName: filename, bundle: Bundle.main, value: "Önce sensör verisi gelmeli", comment: "Instara G1 detail screen, footer below the disabled verification toggle when there is no active sensor")
+    }()
+
     static let sibionicsGS1ConnectionStatus: String = {
         return NSLocalizedString("sibionicsGS1ConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Bağlantı durumu", comment: "Sibionics GS1 diagnostics row title, connection status")
     }()
