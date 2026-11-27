@@ -69,11 +69,9 @@ final class InstaraG1SessionTests: XCTestCase {
     func testMeasuredSampleOutsideRangeIsDiscarded() {
         var state = InstaraG1SessionState()
         _ = realtime(10, t0, &state)
-        // 20 s per sequence rounds to 0 minutes
-        _ = realtime(11, t0.addingTimeInterval(20), &state)
-        _ = realtime(12, t0.addingTimeInterval(40), &state)
-        // 20 minutes per sequence is above 15
-        _ = realtime(13, t0.addingTimeInterval(40 + 1200), &state)
+        // 930 s per step is still a plausible step but rounds to 16 minutes, above the valid range
+        XCTAssertEqual(realtime(11, t0.addingTimeInterval(930), &state).readings.count, 1)
+        XCTAssertEqual(realtime(12, t0.addingTimeInterval(1860), &state).readings.count, 1)
         XCTAssertTrue(state.intervalSamples.isEmpty, "\(state.intervalSamples)")
         XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 5)
     }
@@ -146,6 +144,10 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertEqual(result.readings.first?.clamped, true)
         XCTAssertTrue(logContains(result, "OUT-OF-RANGE"), "\(result.log)")
         XCTAssertNotNil(state.seenSeqs[10])
+        // the lower limit itself is not clamped
+        let limit = realtime(11, t0.addingTimeInterval(300), mmol: 2.0, &state)
+        XCTAssertEqual(limit.readings.first?.clamped, false)
+        XCTAssertEqual(limit.readings.first?.mgDl ?? 0, 2.0 * ConstantsBloodGlucose.mmollToMgdl, accuracy: 0.0001)
     }
 
     func testHighAboveRangeIsClampedTo468() {
@@ -237,27 +239,102 @@ final class InstaraG1SessionTests: XCTestCase {
         XCTAssertTrue(again.log.isEmpty, "\(again.log)")
     }
 
-    func testStartShiftNeedsMeasuredInterval() {
+    func testForwardGapWithPlausibleIntervalIsNormal() {
         var state = InstaraG1SessionState()
         _ = realtime(100, t0, &state)
-        // two hours later only one sequence step: derived start shifts by almost two hours
-        let result = realtime(101, t0.addingTimeInterval(7200), &state)
+        // phone out of range for an hour, the sensor kept counting
+        let result = realtime(112, t0.addingTimeInterval(3600), &state)
+        XCTAssertEqual(result.readings.map { $0.seq }, [112])
         XCTAssertFalse(logContains(result, "SESSION-SUSPECT"), "\(result.log)")
         XCTAssertNil(state.suspect)
-        XCTAssertEqual(result.readings.map { $0.seq }, [101])
+        XCTAssertEqual(state.lastSeq, 112)
     }
 
-    func testStartShiftWithMeasuredIntervalIsSuspect() {
+    func testImplausibleForwardJumpIsSuspect() {
         var state = InstaraG1SessionState()
         _ = realtime(100, t0, &state)
-        _ = realtime(101, t0.addingTimeInterval(300), &state)
-        _ = realtime(102, t0.addingTimeInterval(600), &state)
-        XCTAssertEqual(state.intervalSamples.count, 2)
-        // one step, but one hour later
-        let result = realtime(103, t0.addingTimeInterval(600 + 3600), &state)
+        // one step, but two hours later
+        let result = realtime(101, t0.addingTimeInterval(7200), &state)
         XCTAssertTrue(result.readings.isEmpty)
+        XCTAssertNil(result.newSensorStart)
         XCTAssertTrue(logContains(result, "SESSION-SUSPECT"), "\(result.log)")
-        XCTAssertEqual(state.suspect?.seq, 103)
+        XCTAssertEqual(state.suspect?.seq, 101)
+        XCTAssertEqual(state.lastSeq, 100)
+    }
+
+    func testIntervalChangeFrom1To15DoesNotLoseReadingsOrStartSession() {
+        var state = InstaraG1SessionState()
+        var date = t0
+        var log = [String]()
+        for seq in 10...15 {
+            XCTAssertEqual(realtime(seq, date, &state).readings.count, 1)
+            date = date.addingTimeInterval(60)
+        }
+        date = date.addingTimeInterval(-60)
+        XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 1)
+        let start = state.sensorStart
+        for seq in 16...27 {
+            date = date.addingTimeInterval(900)
+            let result = realtime(seq, date, &state)
+            XCTAssertEqual(result.readings.map { $0.seq }, [seq], "\(result.log)")
+            XCTAssertNil(result.newSensorStart)
+            log += result.log
+        }
+        XCTAssertEqual(InstaraG1Session.intervalMinutes(state), 15)
+        XCTAssertNil(state.suspect)
+        XCTAssertEqual(state.sensorStart, start)
+        XCTAssertFalse(log.contains { $0.hasPrefix("SESSION-") }, "\(log)")
+        XCTAssertTrue(log.contains { $0.hasPrefix("INTERVAL-CHANGE") }, "\(log)")
+    }
+
+    func testSingleHighSeqOutlierBeforeMeasurementDoesNotStartNewSession() {
+        var state = InstaraG1SessionState()
+        _ = realtime(100, t0, &state)
+        let outlier = realtime(60000, t0.addingTimeInterval(1), &state)
+        XCTAssertTrue(outlier.readings.isEmpty)
+        XCTAssertNil(outlier.newSensorStart)
+        let r101 = realtime(101, t0.addingTimeInterval(300), &state)
+        let r102 = realtime(102, t0.addingTimeInterval(600), &state)
+        XCTAssertNil(r101.newSensorStart)
+        XCTAssertNil(r102.newSensorStart)
+        XCTAssertEqual(r101.readings.map { $0.seq }, [101])
+        XCTAssertEqual(r102.readings.map { $0.seq }, [102])
+        XCTAssertNil(state.seenSeqs[60000])
+        XCTAssertNil(state.suspect)
+        XCTAssertEqual(state.lastSeq, 102)
+    }
+
+    func testQuickSensorSwapIsDetectedByImplausibleForwardJump() {
+        var state = InstaraG1SessionState()
+        let t = t0
+        _ = realtime(5, t, &state)
+        let first = realtime(6, t.addingTimeInterval(3600), &state)
+        XCTAssertTrue(first.readings.isEmpty)
+        XCTAssertNil(first.newSensorStart)
+        let second = realtime(7, t.addingTimeInterval(3900), &state)
+        XCTAssertEqual(second.newSensorStart, t.addingTimeInterval(3900 - 7 * 300))
+        XCTAssertEqual(second.readings.map { $0.seq }, [6, 7])
+        XCTAssertEqual(state.lastSeq, 7)
+    }
+
+    func testConfirmResetKeepsSensorInterval() {
+        var state = InstaraG1SessionState()
+        _ = InstaraG1Session.process(.interval(minutes: 3), state: &state, receivedAt: t0.addingTimeInterval(-4000))
+        _ = realtime(500, t0.addingTimeInterval(-3000), &state)
+        _ = realtime(3, t0, &state)
+        let second = realtime(4, t0.addingTimeInterval(180), &state)
+        XCTAssertEqual(state.intervalFromSensor, 3)
+        XCTAssertEqual(second.newSensorStart, t0.addingTimeInterval(180 - 4 * 180))
+    }
+
+    func testSmallBackwardSequenceInTheFutureIsDropped() {
+        var state = InstaraG1SessionState()
+        _ = realtime(500, t0, &state)
+        // reference ahead of the phone clock
+        state.refDate = t0.addingTimeInterval(3600)
+        let result = realtime(499, t0.addingTimeInterval(30), &state)
+        XCTAssertTrue(result.readings.isEmpty)
+        XCTAssertNil(state.seenSeqs[499])
     }
 
     func testOldSeenSeqsArePruned() {

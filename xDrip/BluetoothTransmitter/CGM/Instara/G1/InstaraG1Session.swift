@@ -19,7 +19,7 @@ struct InstaraG1Suspect: Codable, Equatable {
     let seq: Int
     /// receive time of the packet
     let at: Date
-    /// sensor start derived from the packet: at - seq * interval
+    /// sensor start derived from the packet: at - seq * interval. Informational (logs, diagnostics), not used for confirmation
     let derivedStart: Date?
     /// value of the packet, emitted if the new session is confirmed
     let rawMmol: Double
@@ -146,12 +146,22 @@ enum InstaraG1Session {
         state.seenSeqs = state.seenSeqs.filter { $0.value >= limit }
     }
 
-    /// to be called after anything that may change the interval: keeps sensorStart consistent with the interval and logs a conflict
-    private static func intervalMayHaveChanged(from previous: Int, announced: Bool, state: inout InstaraG1SessionState, context: inout Context) {
+    /// true if Δt / Δseq of a forward step is a plausible reading interval
+    private static func isPlausibleStep(deltaT: TimeInterval, deltaSeq: Int) -> Bool {
+        guard deltaSeq > 0 else { return false }
+        let step = deltaT / Double(deltaSeq)
+        return step >= ConstantsInstaraG1.minPlausibleStepSeconds && step <= ConstantsInstaraG1.maxPlausibleStepSeconds
+    }
+
+    /// to be called after anything that may change the interval. sensorStart is re-derived only when the interval first becomes measured; later changes are logged
+    private static func intervalMayHaveChanged(from previous: Int, wasMeasured: Bool, announced: Bool, state: inout InstaraG1SessionState, context: inout Context) {
         let current = intervalMinutes(state)
-        if current != previous, let refSeq = state.refSeq, let refDate = state.refDate {
+        let isMeasured = measuredIntervalMinutes(state) != nil
+        if !wasMeasured, isMeasured, let refSeq = state.refSeq, let refDate = state.refDate {
             state.sensorStart = refDate.addingTimeInterval(-Double(refSeq) * intervalSeconds(state))
-            context.log.append("SENSOR-START;reason=interval-change;interval=\(current);sensorStart=\(epoch(state.sensorStart))")
+            context.log.append("SENSOR-START;reason=interval-measured;interval=\(current);sensorStart=\(epoch(state.sensorStart))")
+        } else if current != previous {
+            context.log.append("INTERVAL-CHANGE;from=\(previous);to=\(current)")
         }
         if current != previous || announced, let measured = measuredIntervalMinutes(state), let fromSensor = state.intervalFromSensor, measured != fromSensor {
             context.log.append("INTERVAL-MISMATCH;measured=\(measured);sensor=\(fromSensor);used=\(measured)")
@@ -164,8 +174,9 @@ enum InstaraG1Session {
             return
         }
         let previous = intervalMinutes(state)
+        let wasMeasured = measuredIntervalMinutes(state) != nil
         state.intervalFromSensor = minutes
-        intervalMayHaveChanged(from: previous, announced: true, state: &state, context: &context)
+        intervalMayHaveChanged(from: previous, wasMeasured: wasMeasured, announced: true, state: &state, context: &context)
     }
 
     private static func processHistory(startSeq: Int, values: [Double], state: inout InstaraG1SessionState, receivedAt: Date, context: inout Context) {
@@ -230,24 +241,18 @@ enum InstaraG1Session {
 
         let derivedStart = receivedAt.addingTimeInterval(-Double(seq) * intervalSeconds(state))
 
+        // candidate rules, always against the current (old) session
         let seqDrop = seq < lastSeq - ConstantsInstaraG1.newSensorSeqDrop
-        var startShift = false
-        if measuredIntervalMinutes(state) != nil, let sensorStart = state.sensorStart {
-            startShift = abs(derivedStart.timeIntervalSince(sensorStart)) > ConstantsInstaraG1.newSensorStartShift
-        }
-        let isCandidate = seqDrop || startShift
+        let forwardJump = seq > lastSeq && !isPlausibleStep(deltaT: receivedAt.timeIntervalSince(refDate), deltaSeq: seq - refSeq)
+        let isCandidate = seqDrop || forwardJump
 
         if let suspect = state.suspect {
-            let startsAgree: Bool
-            if let suspectStart = suspect.derivedStart {
-                startsAgree = abs(derivedStart.timeIntervalSince(suspectStart)) < ConstantsInstaraG1.newSensorConfirmWindow
-            } else {
-                startsAgree = true
-            }
 
-            if isCandidate, seq > suspect.seq, startsAgree {
-                // confirmed: new session from the confirming pair
+            if isCandidate, seq > suspect.seq, isPlausibleStep(deltaT: receivedAt.timeIntervalSince(suspect.at), deltaSeq: seq - suspect.seq) {
+                // confirmed: new session from the confirming pair; the announced interval is kept
+                let intervalFromSensor = state.intervalFromSensor
                 state = InstaraG1SessionState()
+                state.intervalFromSensor = intervalFromSensor
                 addSample(deltaT: receivedAt.timeIntervalSince(suspect.at), deltaSeq: seq - suspect.seq, state: &state, context: &context)
                 startSession(seq: seq, receivedAt: receivedAt, state: &state)
                 context.newSensorStart = state.sensorStart
@@ -259,13 +264,14 @@ enum InstaraG1Session {
                 return
             }
 
+            // not confirmed: the suspect was an outlier, its reading is dropped
             state.suspect = nil
             context.log.append("SESSION-SUSPECT-CLEARED;suspectSeq=\(suspect.seq);seq=\(seq)")
         }
 
         if isCandidate {
             state.suspect = InstaraG1Suspect(seq: seq, at: receivedAt, derivedStart: derivedStart, rawMmol: mmol)
-            context.log.append("SESSION-SUSPECT;seq=\(seq);lastSeq=\(lastSeq);reason=\(seqDrop ? "seq-drop" : "start-shift");derivedStart=\(epoch(derivedStart));sensorStart=\(epoch(state.sensorStart))")
+            context.log.append("SESSION-SUSPECT;seq=\(seq);lastSeq=\(lastSeq);reason=\(seqDrop ? "seq-drop" : "forward-jump");refDate=\(epoch(refDate));derivedStart=\(epoch(derivedStart))")
             return
         }
 
@@ -273,17 +279,22 @@ enum InstaraG1Session {
             // small step back or repeat: time from the reference, the reference stays
             guard state.seenSeqs[seq] == nil else { return }
             let timeStamp = refDate.addingTimeInterval(-Double(refSeq - seq) * intervalSeconds(state))
+            if timeStamp > receivedAt {
+                context.log.append("REALTIME-FUTURE;seq=\(seq);t=\(epoch(timeStamp))")
+                return
+            }
             emit(seq: seq, at: timeStamp, mmol: mmol, mgDl: mgDl, clamped: clamped, state: &state, context: &context)
             return
         }
 
         // normal: newer realtime moves the reference
         let previousInterval = intervalMinutes(state)
+        let wasMeasured = measuredIntervalMinutes(state) != nil
         addSample(deltaT: receivedAt.timeIntervalSince(refDate), deltaSeq: seq - refSeq, state: &state, context: &context)
         state.lastSeq = seq
         state.refSeq = seq
         state.refDate = receivedAt
-        intervalMayHaveChanged(from: previousInterval, announced: false, state: &state, context: &context)
+        intervalMayHaveChanged(from: previousInterval, wasMeasured: wasMeasured, announced: false, state: &state, context: &context)
         emit(seq: seq, at: receivedAt, mmol: mmol, mgDl: mgDl, clamped: clamped, state: &state, context: &context)
     }
 }

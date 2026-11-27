@@ -44,14 +44,14 @@ enum ConstantsInstaraG1 {
     /// warm-up time, minutes
     static let warmupMinutes = 15.0
 
-    /// a sequence number drop of at least this much indicates a new sensor
+    /// a realtime sequence number more than this below the last one is a new-sensor candidate
     static let newSensorSeqDrop = 12
 
-    /// sensor start is assumed this long before the first reading of a new sensor, seconds
-    static let newSensorStartShift: TimeInterval = 1800
+    /// a forward step whose implied interval (Δt / Δseq) is below this is implausible and a new-sensor candidate, seconds
+    static let minPlausibleStepSeconds: TimeInterval = 30
 
-    /// a new sensor must be confirmed within this window, seconds
-    static let newSensorConfirmWindow: TimeInterval = 600
+    /// a forward step whose implied interval (Δt / Δseq) is above this (15.5 minutes) is implausible and a new-sensor candidate, seconds
+    static let maxPlausibleStepSeconds: TimeInterval = 930
 
     /// a partial frame older than this is dropped, seconds
     static let fragmentTimeout: TimeInterval = 2
