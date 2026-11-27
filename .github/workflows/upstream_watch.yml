@@ -1,0 +1,82 @@
+name: Upstream watch
+run-name: Upstream watch (${{ github.ref_name }})
+
+# Reports new commits on the upstream repository WITHOUT merging them.
+# Automatic sync is disabled (repository variable SCHEDULED_SYNC=false) because this fork
+# diverges from upstream; merges are done by hand on a branch and tested first.
+# When new commits exist, one open issue labelled "upstream-sync" lists them and is kept up to date.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * 3' # 08:00 UTC every Wednesday
+
+env:
+  UPSTREAM_REPO: JohanDegraeve/xdripswift
+  UPSTREAM_BRANCH: master
+  LABEL: upstream-sync
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    if: github.repository_owner != 'JohanDegraeve'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Compare with upstream
+        id: compare
+        run: |
+          git fetch --quiet "https://github.com/${UPSTREAM_REPO}.git" "${UPSTREAM_BRANCH}"
+          COUNT=$(git rev-list --count HEAD..FETCH_HEAD)
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "head=$(git rev-parse --short FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "Upstream \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\` has **${COUNT}** commit(s) that are not in \`${{ github.event.repository.default_branch }}\` (upstream head \`$(git rev-parse --short FETCH_HEAD)\`)."
+            echo
+            echo "| Commit | Date | Author | Subject |"
+            echo "|---|---|---|---|"
+            git log --reverse --format='| [`%h`](https://github.com/'"${UPSTREAM_REPO}"'/commit/%H) | %as | %an | %s |' HEAD..FETCH_HEAD \
+              | sed 's/@/@\&#8203;/g' | head -100
+            if [ "${COUNT}" -gt 100 ]; then echo; echo "_Only the first 100 are listed._"; fi
+            echo
+            echo "### How to bring them in"
+            echo '```bash'
+            echo "git fetch https://github.com/${UPSTREAM_REPO}.git ${UPSTREAM_BRANCH}"
+            echo "git switch -c upstream-sync ${{ github.event.repository.default_branch }}"
+            echo "git merge FETCH_HEAD"
+            echo '```'
+            echo "Resolve conflicts, run the tests, merge into \`${{ github.event.repository.default_branch }}\`, then start **4. Build xDrip4iOS** by hand."
+            echo "A single urgent fix can be taken with \`git cherry-pick <commit>\` instead."
+            echo
+            echo "_Updated by the Upstream watch workflow. This issue is closed automatically once nothing is pending._"
+          } > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.compare.outputs.count }}
+        run: |
+          gh label create "$LABEL" --color FBCA04 --description "New upstream commits to review" --force >/dev/null
+          ISSUE=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ "$COUNT" -gt 0 ]; then
+            TITLE="Upstream has ${COUNT} new commit(s) to review"
+            if [ -n "$ISSUE" ]; then
+              gh issue edit "$ISSUE" --title "$TITLE" --body-file body.md
+              echo "Updated issue #$ISSUE"
+            else
+              gh issue create --title "$TITLE" --label "$LABEL" --body-file body.md
+            fi
+          elif [ -n "$ISSUE" ]; then
+            gh issue close "$ISSUE" --comment "Nothing pending from upstream any more."
+            echo "Closed issue #$ISSUE"
+          else
+            echo "No new upstream commits."
+          fi
